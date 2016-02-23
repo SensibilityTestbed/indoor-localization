@@ -17,3 +17,5 @@ class StatStream():
       self.mean = self.mean + mean_diff / self.length
       self.varsum = self.varsum + mean_diff * (x - self.mean)
       self.variance = self.varsum / (self.length - 1)  
+
+# -*- mode: python;-*-
