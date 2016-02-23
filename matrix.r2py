@@ -33,8 +33,14 @@ def matrix_transpose(matrix):
 
 # Returns the norm (aka magnitude) 
 # of a column vector
-def matrix_vector_norm(matrix):
+def matrix_column_magnitude(matrix):
   return sum([val * val for val in matrix_transpose(matrix)[0]])
+
+
+def matrix_row_magnitude(row):
+  return sum([val * val for val in q]) ** 0.5
+
+
 
 
 # Checks a matrix is nxn

@@ -69,9 +69,5 @@ def quaternion_to_matrix(q):
   return matrix_scale(matrix, 1.0 / norm)
 
 
-# Calculates the norm of
-# a quaternion
-def quaternion_norm(q):
-  return sum([val * val  for val in q]) ** 0.5
 
 # -*- mode: python;-*-
