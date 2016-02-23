@@ -16,4 +16,4 @@ while getruntime() start_time  < 120::
   except:
     stop_sensing()
 
-log(get_stepcount(step))
+log(ped.get_stepcount(step))
