@@ -132,7 +132,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     identity = matrix_identity(6)
   
     q = self._get_quaternion() 
-    q_norm = quaternion_norm(q)
+    q_norm = matrix_row_magnitude(q)
 
     # Factored partial derivative of 
     # the acceleration with respect to 
@@ -190,7 +190,7 @@ class OrientationFilter(ExtendedKalmanFilter):
   # much the measurements can be trusted to produce an
   # accurate orientation.
   def _compute_measurement_covariance(self, timestep):
-    acc_norm = quaternion_norm(self._acc)
+    acc_norm = matrix_row_magnitude(self._acc)
     
     # Is the phone only under the influence of gravity?
     if abs(acc_norm - GRAVITY) < EPSILON_GRAVITY:
@@ -201,7 +201,7 @@ class OrientationFilter(ExtendedKalmanFilter):
       # Don't rely on accelerometer
       acc_covar = MAX_ACC_COVAR
     
-    magnet_norm = quaternion_norm(self._magnet)
+    magnet_norm = matrix_row_magnitude(self._magnet)
 
     # Rotate measurements from phone to navigational frame
     rotation = quaternion_to_matrix(self._get_quaternion())
@@ -212,7 +212,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     dip = math_acos(matrix_dot_product(magnet_rotated, acc_rotated) / (magnet_norm * acc_norm))
 
     # Are there no magnetic disturbances in the environment?
-    if abs(mag_norm - quaternion_norm([self._magnet[0], 0, self._magnet[2]])) < EPSILON_MAGNETIC \
+    if abs(mag_norm - matrix_row_magnitude([self._magnet[0], 0, self._magnet[2]])) < EPSILON_MAGNETIC \
         and abs(dip - self._local_dip) < EPSILON_DIP:
       # Trust magnetometer, use for orienting
       magnet_covar = matrix_scale(matrix_identity(3, 3), self._magnet_stats.variance)
@@ -257,9 +257,9 @@ class OrientationFilter(ExtendedKalmanFilter):
     measurements = matrix_transpose([self._acc + self._magnet])
 
     # update measurement variances
-    self._gyro_stats.update(matrix_vector_norm(gyro_vector))
-    self._acc_stats.update(quaternion_norm(self._acc))
-    self._magnet_stats.update(quaternion_norm(self._magnet))
+    self._gyro_stats.update(matrix_column_magnitude(gyro_vector))
+    self._acc_stats.update(matrix_row_magnitude(self._acc))
+    self._magnet_stats.update(matrix_row_magnitude(self._magnet))
 
     # run Kalman filter
     self._update(gyro_vector, measurements, sensor_data['time'])
