@@ -1,0 +1,56 @@
+"""
+<Program Name>
+  moving_average.r2py
+
+<Purpose>
+  This is a script for moving average filter to filter out 
+  the raw acceleration data. Introducing an preset maximum 
+  sample interval to avoid device lag.
+"""
+
+
+
+
+# output: y = sum(x[i])/length, i in range (0, window_size)
+# minimum window size is 4
+# the delay = window_size/2
+class MovingAverageFilter:
+	def __init__(self, moving_average_sample, current_time, threshold):
+		self.mag_list = []
+		self.window_size = moving_average_sample
+		self.last_time = current_time
+		self.threshold = threshold
+
+
+
+	def moving_average_filter(self, data, current_time):
+		# avoid device lag
+		# different sampling time interval will reduce the filter's accuracy
+		if current_time - self.last_time > self.threshold:
+			self.mag_list = []
+		length = len(self.mag_list)
+		filtered_magNoG = 0.0
+
+
+		if length < self.window_size:
+			self.mag_list.append(data)
+			length += 1
+			for i in range(0,length):
+				filtered_magNoG = filtered_magNoG + self.mag_list[i]
+				filtered_magNoG = filtered_magNoG/length
+
+
+		elif length == self.window_size:
+			for i in range(0, length-1):
+				self.mag_list[i] = self.mag_list[i+1]
+				filtered_magNoG = filtered_magNoG + self.mag_list[i]
+				self.mag_list[length-1] = data
+				filtered_magNoG = filtered_magNoG + data
+				filtered_magNoG = filtered_magNoG/length
+		self.last_time = current_time
+
+
+		return filtered_magNoG
+
+
+# -*- mode: python;-*-

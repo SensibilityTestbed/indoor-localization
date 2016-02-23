@@ -1,0 +1,60 @@
+"""
+<Program Name>
+  low_pass_filter.r2py
+
+<Purpose>
+  This is a script for linear phase low pass filter to filter out 
+  the raw acceleration data with 10HZ cut off frequency. 
+  Introducing an preset maximum sample interval to avoid device lag.
+"""
+
+
+a0 = 0.0201
+a1 = 0.0402
+a2 = 0.0201
+b1 = 1.5610
+b2 = -0.6414
+
+# y(k) = a0x(k) + a1x(k-1) + a2x(k-2) + b1y(k-1) + b2y(k-2)
+# cut off frequency = 10HZ
+
+class LowPassFilter:
+	def __init__(self, current_time, threshold):
+		self.mag_list = []
+		self.output_list = []
+		self.last_time = current_time
+		self.threshold = threshold
+
+
+
+	# lowpassfilter filter smooth the curve
+	def low_pass_filter(self, data, current_time):
+		# avoid device lag
+		# different sampling time interval will reduce the filter's accuracy
+		if current_time - self.last_time > self.threshold:
+			self.mag_list = []
+			self.output_list = []
+		length = len(self.mag_list)
+
+
+		if length < 2:
+			self.mag_list.append(data)
+			self.output_list.append(data)
+			filtered_magNoG = data
+			length += 1
+
+
+		# will change to queue later
+		elif length == 2:
+			filtered_magNoG = a0 * data + a1 * self.mag_list[1] + a2 * self.mag_list[0] + b1 * self.output_list[1] + b2 * self.output_list[0]
+			self.mag_list[0] = self.mag_list[1]
+			self.mag_list[1] = data
+			self.output_list[0] = self.output_list[1]
+			self.output_list[1] = filtered_magNoG
+			
+		self.last_time = current_time
+
+		return filtered_magNoG
+
+
+# -*- mode: python;-*-
