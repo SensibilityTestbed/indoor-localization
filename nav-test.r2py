@@ -1,7 +1,11 @@
+dy_import_module("getsensor.r2py")
+dy_import_module_symbols("indoor_navigator.r2py")
+
 start_sensing(1, 1)
 nav = IndoorNavigator()
+
 while True:
-  nav.navigate(getsensors())
+  nav.navigate(getsensor.get_sensors())
   log(nav.get_coordinates(), '\n'))
 
 

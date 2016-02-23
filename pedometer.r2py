@@ -32,15 +32,6 @@ PEAK_INTERVAL = 0.5
 
 
 
-# get acceleration data from sensor
-def mag_acceleration(data):
-	return (data['xforce'] ** 2 + data['yforce'] ** 2 + data['zforce'] ** 2) ** 0.5
-
-
-
-
-
-
 # log coefficient after pre-calibration stage
 def log_coefficient(gravity_constant, moving_rate, threshold):
 	log("Pre calibration done!\n")
@@ -48,44 +39,6 @@ def log_coefficient(gravity_constant, moving_rate, threshold):
 			"\nMoving Average Filter Window Sampling Number:", moving_rate, 
 			"\nThreshold:", threshold, '\n')
 	log("Please walk around\n")
-
-
-
-
-
-# start pedometer module
-def start_pedometer():
-	step = Pedometer(pre_learn())
-	step.start()
-	return step
-
-
-
-
-
-# stop pedometer module
-def stop_pedometer(step):
-	step.stop()
-	sleep(0.1)
-
-
-
-
-
-# get pedometer data
-def get_pedometer_data(step):
-	return step.get_data()
-
-
-
-
-
-
-
-
-
-
-
 
 
 # Peodmeter class, includes filtering raw data and step estimation
@@ -96,8 +49,8 @@ class Pedometer:
     self.threshold = precalibration.get_threshold()
 
     # Initialize moving average filter and step detection
-    self.maf = MovingAverageFilter(moving_rate, precalibration.time, 0.125)
-    self.lpf = LowPassFilter(time, 0.25)
+    self.maf = MovingAverageFilter(self.moving_rate, precalibration.time, 0.125)
+    self.lpf = LowPassFilter(precalibration.time, 0.25)
 
     self.steptime = precalibration.time
     #log_coefficient(gravity_constant, moving_rate, threshold)
@@ -117,7 +70,7 @@ class Pedometer:
 
     
 
-  def detect_step(self, method=0, raw_acc, time):	
+  def detect_step(self,raw_acc, time, method=0):	
 
     # Non-gravity acceleration
     raw_mag = mag_acceleration(raw_acc) - self.gravity_constant

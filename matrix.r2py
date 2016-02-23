@@ -38,7 +38,7 @@ def matrix_column_magnitude(matrix):
 
 
 def matrix_row_magnitude(row):
-  return sum([val * val for val in q]) ** 0.5
+  return sum([val * val for val in row]) ** 0.5
 
 
 
