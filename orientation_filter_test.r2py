@@ -1,0 +1,28 @@
+dy_import_module_symbols('orientation_filter.r2py')
+dy_import_module_symbols('getsensor.r2py')
+
+MAX = 2000  # approx 10s (at 200Hz)
+
+compass = OrientationFilter()
+mutex = createlock()
+
+def log_orientation(measurements):
+  def enclosed_func():
+    mutex.acquire(True)
+    log(compass.get_orientation(measurements), '\n')
+    mutex.release()
+  return enclosed_func
+
+
+samplenum = 0
+start_sensing(1, 5)
+while(samplenum < MAX):
+  samplenum += 1
+  # Compute orientation in separate thread, so
+  # we don't miss measurements from being too slow.
+  createthread(log_orientation(get_sensors()))
+  # Sleep until the next measurment.
+  sleep(0.005)
+stop_sensing()
+
+# -*- mode: python;-*-

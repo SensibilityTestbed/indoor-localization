@@ -1,0 +1,77 @@
+"""
+<Program name>
+  quaternion.r2py
+
+<Purpose>
+  Provide functions for quaternion algebra.
+"""
+
+
+GRAVITY = [0.0, 0.0, 1.0]
+
+# Initializes a quaternion describing the tilt
+# of the device with respect to the plane parallel
+# to the Earth's surface 
+def quaternion_tilt(acc):
+  q = [0.0] * 4
+  q[0] = math_acos(acc[2])
+  q[1] = acc[1]*GRAVITY[2] - acc[2]*GRAVITY[1]
+  q[2] = acc[2]*GRAVITY[0] - acc[0]*GRAVITY[2]
+  q[3] = acc[0]*GRAVITY[1] - acc[1]*GRAVITY[0] 
+  return q
+  
+
+# Multiplies two quaternions and returns the result
+def quaternion_multiply(q1, q2):
+  q = [0.0] * 4
+  q[0] = q1[0]*q2[1] + q1[1]*q2[0] + q1[2]*q2[3] - q1[3]*q2[2]
+  q[1] = q1[0]*q2[2] - q1[1]*q2[3] + q1[2]*q2[0] + q1[3]*q2[1]
+  q[2] = q1[0]*q2[3] + q1[1]*q2[2] - q1[2]*q2[1] + q1[3]*q2[0]
+  q[3] = q1[0]*q2[0] - q1[1]*q2[1] - q1[2]*q2[2] - q1[3]*q2[3]
+  return q
+
+
+def quaternion_inverse(q):
+  matrix_multiply([q], [[-1
+
+
+# Builds a skew symmetric 
+# matrix for axes or angles
+def quaternion_skew_symmetric(x, y, z):
+  return [[0, -z, y], [z, 0, -x], [-y, x, 0]]
+
+
+# Builds a matrix that takes the derivative of a 
+# quaternion when multiplied
+def quaternion_differentiator(roll, pitch, yaw):
+  omega = quaternion_skew_symmetric(roll, pitch, yaw)
+  omega[0].append(roll)
+  omega[1].append(pitch)
+  omega[2].append(yaw)
+  omega.append([-roll, -pitch, -yaw, 0])
+  return omega
+
+
+# Computes the rotation matrix
+# of a given quaternion
+def quaternion_to_matrix(q):
+  norm = quaternion_norm(q)
+  matrix = matrix_init(3, 3)
+  matrix[0][0] = q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]
+  matrix[0][1] = 2 * (q[0] * q[1] + q[2] * q[3])
+  matrix[0][2] = 2 * (q[0] * q[2] - q[1] * q[3])
+  matrix[1][0] = 2 * (q[0] * q[1] - q[2] * q[3])
+  matrix[1][1] = -q[0] * q[0] + q[1] * q[1] - q[2] * q[2] + q[3]* q[3]
+  matrix[1][2] = 2 * (q[1] * q[2] + q[0] * q[3])
+  matrix[2][0] = 2 * (q[0] * q[2] + q[1] * q[3])
+  matrix[2][1] = 2 * (q[1] * q[2] - q[0] * q[3])
+  matrix[2][2] = -q[0] * q[0] - q[1] * q[1] + q[2] * q[2] + q[3]* q[3]
+  return matrix_scale(matrix, 1.0 / norm)
+
+
+# Calculates the norm of
+# a quaternion
+def quaternion_norm(q):
+  return sum([val * val  for val in q]) ** 0.5
+
+# -*- mode: python;-*-

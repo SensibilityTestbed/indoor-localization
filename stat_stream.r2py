@@ -1,0 +1,21 @@
+
+
+class StatStream():
+  def __init__(self, listdata=None):
+    self.length = 0
+    self.mean = 0
+    self.varsum = 0
+    self.variance = 0
+    if listdata:
+      for data in listdata:
+        self.update(data)
+
+
+
+  def update(self, x):
+    self.length += 1
+    if length > 1:
+      mean_diff = x - self.mean
+      self.mean = self.mean + mean_diff / self.length
+      self.varsum = self.varsum + mean_diff * (x - self.mean)
+      self.variance = self.varsum / (self.length - 1)  

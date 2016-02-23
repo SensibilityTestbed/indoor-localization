@@ -1,0 +1,7 @@
+start_sensing(1, 1)
+nav = IndoorNavigator()
+while True:
+  nav.navigate(getsensors())
+  log(nav.get_coordinates(), '\n'))
+
+

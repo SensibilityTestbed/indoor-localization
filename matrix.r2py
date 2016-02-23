@@ -1,0 +1,237 @@
+"""
+<Program Name>
+  matrix.r2py
+
+<Purpose>
+  This module provides functions for matrix algebra.
+  Matrices are taken to be two-dimensional lists.
+"""
+
+dy_import_module_symbols('math.r2py')
+
+class MatrixDimensionsError(RepyException):
+  """For operations that can't be done on a matrix due to size"""
+
+class MatrixInverseError(RepyException):
+  """For singular matrices"""
+
+# Initializes an mxn null (all zero) matrix 
+def matrix_init(m, n):
+  return [[0 for col in range(n)] for row in range(m)]
+
+
+# Returns a copy of the given matrix
+def matrix_copy(matrix):
+  return [[matrix[row][col] for col in range(len(matrix[0]))] for row in range(len(matrix))]
+
+
+# Returns the matrix transpose,
+# i.e. row and columns swapped.
+def matrix_transpose(matrix):
+  return [[row[index] for row in matrix] for index in range(len(matrix[0]))]
+
+
+# Returns the norm (aka magnitude) 
+# of a column vector
+def matrix_vector_norm(matrix):
+  return sum([val * val for val in matrix_transpose(matrix)[0]])
+
+
+# Checks a matrix is nxn
+def matrix_is_square(matrix):
+  for row in range(len(matrix)):
+    if len(matrix) != len(matrix[row]):
+      return False
+  return True
+
+
+# Adds two matrices together
+def matrix_add(m1, m2):
+  if len(m1) != len(m2) or len(m1[0]) != len(m2[0]):
+    raise MatrixDimensionsError("Matrix dimensions are invalid for addition.")
+  return [[m1[row][col] + m2[row][col] for col in range(len(m1[0]))] for row in range(len(m1))]  
+
+
+# Multiplies a copy of the matrix by a scalar
+def matrix_scale(matrix, scalar):
+  return [[scalar * val for val in row] for row in matrix]
+
+
+# Mutliplies two matrices together
+def matrix_multiply(left, right):
+  if len(left[0]) != len(right):
+    raise MatrixDimensionsError("Matrix dimensions are invalid for multiplication.")
+
+  product = []
+  for row in range(len(left)):
+    product.append([])
+    for col in range(len(right[0])):
+      product[row].append(0)
+      for param in range(len(right)):
+        product[row][col] += left[row][param] * right[param][col]
+
+  return product
+
+
+
+
+# Returns the dot product of two vectors
+def matrix_dot_product(left, right):
+  if len(left) != len(right):
+    raise MatrixDimensionsError("Vectors must be the size.")
+  dot_product = 0.0
+  # multiply element-wise and sum the results
+  for row in range(len(left)):
+    for col in range(len(left[0])):
+      dot_product += left[row][col] * right[row][col]
+  return dot_product
+
+
+
+
+# Returns the cross product of two 3x3 vectors
+def matrix_vector_cross_product(u, v):
+  return [[u[1] * v[2] - u[2] * v[1]], \
+          [u[2] * v[0] - u[0] * v[2]], \
+          [u[0] * v[1] - u[1] * v[0]]]
+
+
+# Initializes a nxn Identity matrix
+def matrix_identity(n):
+  matrix = matrix_init(n, n)
+  for index in range(n):
+    matrix[index][index] = 1
+  return matrix 
+ 
+# Swaps rows i and j of a matrix
+def matrix_row_swap(matrix, i, j):
+  temp = matrix[i]
+  matrix[i] = matrix[j]
+  matrix[j] = temp
+  return matrix    
+ 
+
+# Calculates the inverse of any square, nonsingular matrix
+def matrix_inverse(matrix):
+  if not matrix_is_square(matrix):
+    raise MatrixDimensionsError("Matrix not square, has no inverse.")
+  # By applying row ops on the augmented matrix 
+  # that turn the given matrix into Identity, 
+  # the Identiy portion will become the inverse. 
+  augment = matrix_copy(matrix)
+  identity = matrix_identity(len(matrix))
+  for row in range(len(matrix)):
+    augment[row].extend(identity[row])
+
+  for row in range(len(matrix)):
+
+    # Find the pivot row
+    pivot = row
+    for lower_row in range(row + 1, len(matrix)):
+      if abs(augment[lower_row][row]) > abs(augment[pivot][row]):
+        pivot = lower_row
+    matrix_row_swap(augment, row, pivot)
+
+    # Check for singularity
+    if augment[row][row] == 0:
+      raise MatrixInverseError("Matrix is singular!")
+
+    # Divide the current row by the pivot
+    # to get 1 along diagonal
+    if augment[row][row] != 1:
+      divisor = float(augment[row][row])
+      for col in range(row, len(augment[0])):
+        augment[row][col] = augment[row][col] / divisor
+
+    # Subtract a multiple of the current row
+    # from every other row to zero out the 
+    # rest of that column
+    for row_num in range(row) + range(row+1, len(matrix)):
+      multiple = float(augment[row_num][row]) / augment[row][row]
+      for col in range(row, len(augment[0])):
+        augment[row_num][col] -= multiple * augment[row][col]
+        
+  return [row[:len(matrix)] for row in augment]
+
+
+    
+# Calculates the exponential of a matrix (e^matrix)
+def matrix_exponential_skew_symmetric(matrix):
+  mag = 0
+  # Sum the squares of the upper
+  # right triangle of the matrix.
+  for row in range(len(matrix) - 1):
+    for col in range(row + 1, len(matrix)):
+      mag += matrix[row][col] ** 2 
+  mag = mag ** 0.5
+
+  return matrix_identity(len(matrix)) + matrix_scale(matrix, math_sin(mag) / mag) + \
+      matrix_scale(matrix_multiply(matrix, matrix), (1 - cos(mag)) / (mag ** 2))
+  
+
+
+# Calculates the determinant of a 2x2 matrix
+def matrix_determinant_2x2(matrix):
+
+  if len(matrix) != 2:
+    raise MatrixDimensionsError("Invalid matrix dimensions -- must be 2x2.")
+
+  if not matrix_is_square(matrix):
+    raise MatrixDimensionsError("Matrix isn't square, has no determinant.")
+  
+  return matrix[0][0]*matrix[1][1] - matrix[0][1]*matrix[1][0]
+
+
+# Calculates the determinant of a 3x3 matrix
+def matrix_determinant_3x3(matrix):
+
+  if len(matrix) != 3:
+    raise MatrixDimensionsError("Matrix must be 3x3.")
+
+  if not matrix_is_square(matrix):
+    raise MatrixDimensionsError("Matrix isn't square, has no determinant.")
+
+  return matrix[0][0]*matrix[1][1]*matrix[2][2] - matrix[0][0]*matrix[1][2]*matrix[2][1] - \
+      matrix[0][1]*matrix[1][0]*matrix[2][2] + matrix[0][1]*matrix[1][2]*matrix[2][0] + \
+      matrix[0][2]*matrix[1][0]*matrix[2][1] - matrix[0][2]*matrix[1][1]*matrix[2][0]
+
+
+
+# Calculates the inverse of a 2x2 matrix efficiently
+def matrix_inverse_2x2(matrix):
+
+  if not matrix_square(matrix):
+    raise MatrixInverseError("Matrix isn't square, has no inverse.")
+
+  det = matrix_determinant_2x2(matrix)
+  if det != 0:
+    return matrix_scale([[matrix[1][1], -matrix[0][1]], [-matrix[1][0], matrix[0][0]]], 1.0 / det)
+  else:
+    raise MatrixInverseError("Matrix is singular!")
+
+
+
+# Calculates the inverse of a 3x3 matrix efficiently
+def matrix_inverse_3x3(matrix):
+
+  if not matrix_square(matrix):
+    raise MatrixInverseError("Matrix isn't square, has no inverse.")
+    
+  det = matrix_determinant_3x3(matrix)
+  if det != 0:
+    unscaled_inverse = [ \
+        [matrix_determinant_2x2([[matrix[1][1], matrix[1][2]], [matrix[2][1], matrix[2][2]]]), \
+            matrix_determinant_2x2([[matrix[0][2], matrix[0][1]], [matrix[2][2], matrix[2][1]]]), \
+            matrix_determinant_2x2([[matrix[0][1], matrix[0][2]], [matrix[1][1], matrix[1][2]]])], \
+        [matrix_determinant_2x2([[matrix[1][2], matrix[1][0]], [matrix[2][2], matrix[2][0]]]), \
+            matrix_determinant_2x2([[matrix[0][0], matrix[0][2]], [matrix[2][0], matrix[2][2]]]), \
+            matrix_determinant_2x2([[matrix[0][2], matrix[0][0]], [matrix[1][2], matrix[1][0]]])], \
+        [matrix_determinant_2x2([[matrix[1][0], matrix[1][1]], [matrix[2][0], matrix[2][1]]]), \
+            matrix_determinant_2x2([[matrix[0][1], matrix[0][0]], [matrix[2][1], matrix[2][0]]]), \
+            matrix_determinant_2x2([[matrix[0][0], matrix[0][1]], [matrix[1][0], matrix[1][1]]])]]
+    return matrix_scale(unscaled_inverse, 1.0 / det)
+  
+  else:
+    raise MatrixInverseError("Matrix is singular!")
+
+# -*- mode: python;-*- 

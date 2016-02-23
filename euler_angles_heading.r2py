@@ -1,0 +1,130 @@
+"""
+
+<Program Name>
+  inertialnav.r2py
+
+<Purpose>
+  This is a script for estimating the position of a person walking
+  between two known locations. Sensor data from the GPS, accelerometer,
+  gyroscope, and magnetometer are backhauled to sensevis.poly.edu while 
+  the acceleration and angular velocity of the device are integrated to
+  estimate its position.
+
+  *Note: The device must begin at rest to calibrate the acceleration due
+  to gravity.
+
+"""
+
+
+
+getsensor = dy_import_module('getsensor.r2py')
+sensevislib = dy_import_module('sensevislib.r2py')
+dy_import_module_symbols('matrixmath.r2py')
+dy_import_module_symbols('math.r2py')
+
+XYZ = 3
+z_axis = [[0], [0], [1]]
+
+lock = createlock()
+
+start = 0
+
+# Initial angles for pitch, roll, yaw
+p_init = 0
+r_init = 0
+y_init = 0
+
+# A vector representing the
+# projected vector of motion
+# onto the x-y plane
+heading = matrix_init(3, 1)
+
+# start all sensors at ~167Hz
+getsensor.start_sensing(1, 6)
+
+phone_gravity = [[0, 0, 0]]
+num_samples = 0
+# Phone should be stationary
+# while calibrating gravity
+log('Calibrating gravity...\n')
+while num_samples < 100:
+  # add up each gravity sample
+  phone_gravity = matrix_add(phone_gravity, [getsensor.get_acceleration()])
+  num_samples += 1
+
+# set gravity as the avg, and negate for later subtraction
+minus_phone_gravity = matrix_transpose(matrix_scale(phone_gravity, -1.0 / num_samples))
+log('Gravity: ', gravity, '\n')
+
+
+
+# Some sensors start before others, so we
+# need to wait until we get one with a timestamp
+while 'time' not in getsensor.get_sensors():
+  sleep(0.1)
+
+log('Starting...')
+# Collect sensor data, but process it in another
+# thread so we don't slow down the polling rate. 
+while True:
+  createthread(process(getsensor.get_sensors()))
+  
+
+# processes sensor data to estimate position
+def process(sensordata):
+  def func():
+    # Calculate time step (since last measurement)
+    dt = sensordata['time'] - start
+    
+    # Make sure we didn't poll too fast
+    if dt == 0:
+      return
+
+
+    # Store raw sensor data
+    phone_acc = [[sensordata['xforce']], [sensordata['yforce']], [sensordata['zforce']]]
+
+    # Other processing threads may be running,
+    # so we need to protect the current orientation,
+    # position, and initial velocity.
+    lock.acquire(True)
+    ################################### CRITICAL REGION #######################################
+
+    # remember timestamp for next thread
+    start = sensordata['time']
+
+    # Subtract initial angles from Euler angles
+    pitch = sensordata['pitch'] - p_init
+    roll = sensordata['roll'] - r_init
+    yaw = sensordata['azimuth'] - y_init
+   
+    # Euler rotation matrices for orienting in the phone's frame of reference 
+    rotationx = [[1.0, 0.0, 0.0], [0.0, math_cos(pitch), -math_sin(pitch)], [0.0, math_sin(pitch), math_cos(pitch)]]
+    rotationy = [[math_cos(roll), 0.0, math_sin(roll)], [0.0, 1.0, 0.0], [-math_sin(roll), 0.0, math_cos(roll)]]
+    rotationz = [[math_cos(yaw), -math_sin(yaw), 0.0], [math_sin(yaw), math_cos(yaw), 0.0], [0.0, 0.0, 1.0]]
+
+    # Combined rotation transformation
+    rotation = matrix_multiply(matrix_multiply(rotationz, rotationy), rotationx)
+    
+    # Invert rotation matrix to get phone-to-world transformation
+    transform = matrix_inverse(rotation)
+    
+    # Transform phone acc and gravity to real world coordinates
+    acc = matrix_multiply(transform, phone_acc)
+    minus_gravity = matrix_multiply(transform, minus_phone_gravity)
+
+    # Subtract gravity from acc for linear acc
+    linear_acc = matrix_add(acc, minus_gravity)
+
+    # The heading will be the projection of the 
+    # linear acc onto the x-y plane. This is obtained
+    # by subtracting the projection of the linear acc
+    # onto the z-axis from the linear acc vector.
+    minus_z_projection = matrix_scale(z_axis, -matrix_dot_product(linear_acc, z_axis))
+    heading = matrix_add(linear_acc, minus_z_projection)
+    ################################# ENDOF CRITICAL REGION ###################################
+    lock.release()
+
+  return func
+
+# -*- mode: python;-*-

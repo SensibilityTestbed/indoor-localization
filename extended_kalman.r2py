@@ -1,0 +1,137 @@
+"""
+<Program Name>
+  extended_kalman.r2py
+
+<Purpose>
+  Provides an abstract class for creating an Extended Kalman Filter.
+  The EKF is an algorithm than can be used to produce improved estimates 
+  of unknown variables by sensor fusion. 
+
+  The EKF has two steps:
+    1) The prediction step: predicts how the system state will change,
+       and is usually based on a physical model.
+    2) The update/correction step: updates the state estimate using
+       measurements from various sources.
+
+  To create an EKF, the caller must create a child class of the
+  ExtendedKalmanFilter class. Therein must the filter state (specific
+  to system model) be defined.
+"""
+
+dy_import_module_symbols('matrix.r2py')
+
+
+class KalmanFilterError(RepyException):
+  """Error for unimplemented Kalman methods in child classes"""
+
+
+class ExtendedKalmanFilter():
+
+  def __init__(self, state, error):
+    self._state = state
+    self._error = error
+    self._time = 0
+    self._timestep = 0
+
+  # Computes the a priori state estimate,
+  # i.e. the state predicted by the system model.
+  def _compute_a_priori_state(self, transition_matrix):
+    self._state = matrix_multiply(transition_matrix, self._state)
+
+
+  def _compute_process_covariance(self):
+    pass
+
+  
+  # Computes the error covariance in the prediction step.
+  def _compute_a_priori_error(self, transition_matrix):
+    error = matrix_multiply(matrix_multiply(transition_matrix, self._error), matrix_transpose(transition_matrix))
+    self._error = matrix_add(error, self._compute_process_covariance)
+
+
+  def _compute_measurement_covariance(self):
+    pass
+
+
+  # Computes the Kalman gain as a matrix weighing how much
+  # to trust measurements based on the probability each 
+  # measurement has of representing the the true state.
+  def _compute_gain(self, jacobian_matrix):
+    jacobian_transpose = matrix_transpose(jacobian)
+    left = matrix_multiply(self._error, jacobian_transpose)  
+    right = matrix_add(matrix_multiply(matrix_multiply(jacobian, self._error), jacobian_transpose), self._compute_measurement_covariance)
+    return matrix_multiply(left, matrix_inverse(right))
+
+
+  # Computes the measurements the filter would
+  # expect to see for the current state, denoted
+  # as h in the literature.
+  #
+  # *** Note ***
+  # The implementation of this "abstract" method is left as an exercise
+  # for the caller since it is dependent on the state definition.
+  def _compute_expected_measurements(self):
+    raise KalmanFilterError("Abstract method _compute_expected measurements(self) not defined in ExtendedKalmanFilter child class.")
+  
+
+  # Computes the a posteriori state estimate,
+  # i.e. the measurement correct state.
+  def _compute_a_posteriori_state(self, gain, measurements):
+    self._state = matrix_add(self._state, matrix_multiply(gain, matrix_minus(measurements, self._compute_expected_measurements())))
+
+
+  # Computes the error covariance in the corrected state.
+  def _compute_a_posteriori_error(self, jacobian, gain):
+    self._error = matrix_minus(self._error, matrix_multiply(matrix_multiply(gain, jacobian), self._error))
+
+  
+  # Computes the matrix describing how the state transitions
+  # during the prediction step. 
+  #
+  # *** Note *** 
+  # The implementation of this "abstract" method is left as an exercise
+  # for the caller since it is dependent on the state definition.
+  def _compute_transition_matrix(self, input_vector, timestep):
+    raise KalmanFilterError("Abstract method _compute_transition_matrix(self, input_vector, timestep)" + \
+        " not defined in ExtendedKalmanFilter child class.")
+
+
+  # Computes the Jacobian by taking the partial derivative of the
+  # measurements matrix with respect to the state matrix, evaluated
+  # at the a priori.
+  #
+  # *** Note *** 
+  # The implementation of this "abstract" method is left as an exercise
+  # for the caller since it is dependent on the state definition.
+  def _compute_jacobian_matrix(self):
+    raise KalmanFilterError("Abstract method _compute_jacobian(self)" + \
+        " not defined in ExtendedKalmanFilter child class.")
+
+
+  # Peforms an update on the filter, recomputing
+  # the a priori and a posteriori from new data.
+  #
+  # *** Note ***
+  # This is the only method that should be directly called by child classes.
+  def _update(self, input_vector, measurements, time):
+    self._timestep = time - self._time
+
+    # Sanity check: did we miss a measurement?
+    if timestep < 0:
+      return
+
+    self._time = time
+
+    # Project ahead?
+    transition_matrix = self._compute_transition_matrix(input_vector)
+    self._compute_a_apriori_state(transition_matrix)
+    self._compute_a_priori_error(transition_matrix)
+
+    # Correct the prediction
+    jacobian = self._compute_jacobian_matrix()
+    gain = self._compute_gain(jacobian)
+    self._compute_a_posteriori_state(gain, measurements)
+    self._compute_a_posteriori_error(gain, jacobian)
+
+
+# -*- mode: python;-*-

@@ -1,0 +1,158 @@
+sensorlib = dy_import_module('sensorlib.r2py')
+sensevislib = dy_import_module('sensevislib.r2py')
+dy_import_module_symbols('registerhttpcallback.r2py')
+dy_import_module_symbols('time.r2py')
+
+# Name the device
+mycontext['deviceID'] = 'nexus5c'
+
+# Fiducial points (in meters)
+mycontext['groundtruth'] = [
+    (0.0, 0.0), (-4.2672, 1.7272),
+    (-4.267, 3.9878), (-4.4958, 11.1252),
+    (-1.8542, 22.606), (-10.1092, 24.511),
+    (8.6614, 33.7312), (3.6068, 42.4942),
+    (-71.8796, 42.4942), (-9.652, 44.9326)
+]
+
+
+
+# HTTP handler
+def serve(request, query, post):
+
+  # returns the contents of an 
+  # html file as a string
+  def render(html):
+    doc = openfile(html, False)
+    response = [doc.readat(None, 0), None]
+    doc.close()
+    return response
+
+
+  
+  # start capturing data  
+  def start_trial(post):
+
+    # record only the ground-truth
+    # location right now (at start
+    # or end)
+    def entrybuffer(loc):
+      entry = {
+          'time': time_getunixtime(),
+          'deviceID': mycontext['deviceID'], 
+          'groundtruth (m)': mycontext['groundtruth'][loc]
+      }
+      return entry
+
+
+    # actual data capture
+    def startfunc():
+      # Open a socket w/sl4a
+      port = sensorlib.get_connectionport()
+      sensor_socket = sensorlib.getconnection(port)
+
+      # Make the state global,
+      # so another request can
+      # stop this thread.
+      mycontext['started'] = True
+                
+      
+      start = post['start']
+      end = post['end']
+
+      sensevisfile = sensevislib.open("SensibilityTestbed/inertialnav/pocket-"+start+"-"+end)
+
+      # write the start point
+      firstbuff = entrybuffer(int(start)-1)
+      sensevisfile.write(firstbuff)
+     
+      prev = firstbuff['time']
+
+      # start gps 
+      sensorlib.request_data(sensor_socket, 'startLocating', [])
+      # start all sensors
+      sensorlib.request_data(sensor_socket, 'startSensingTimed', [1, 1])
+
+      while mycontext['started']:
+       
+        # Capture sensors if we can
+        sensordata = None
+        try:
+          sensordata = sensorlib.request_data(sensor_socket, 'readSensors', [])
+        except:
+          pass
+
+        # Capture gps if we can
+        location = None
+        try:
+          location = sensorlib.request_data(sensor_socket, 'readLocation', [])
+        except:
+          pass
+
+
+        if sensordata:
+          # throw out data with no or old timestamp
+          if 'time' not in sensordata or sensordata['time'] == prev:
+            sleep(0.01)
+            continue
+  
+          elif location:
+            # add location to sensordata
+            for provider in location:
+              # remove redundant info
+              del location[provider]['provider']
+              # Rename location keys so
+              # none are overwritten by
+              # other providers.
+              for key in location[provider]:
+                sensordata[provider+' '+key] = location[provider][key] 
+   
+          # Remember this entry
+          # so I don't backhaul it
+          # twice if SL4A gives me
+          # old data.
+          prev = sensordata['time']
+          # Identify the device
+          sensordata['deviceID'] = mycontext['deviceID'] 
+          # backhaul the data to sensevis
+          sensevisfile.write(sensordata)
+        
+  
+      # User told us to stop
+      sensorlib.request_data(sensor_socket, 'stopLocating', [])
+      sensorlib.request_data(sensor_socket, 'stopSensing', [])
+     
+      # backhaul the end location and finish up
+      sensevisfile.write(entrybuffer(int(end)-1))
+      sensevisfile.close()
+     
+    # Need start func in another thread
+    # to return an HTTP response
+    createthread(startfunc)
+    return render('stop.html')
+
+
+
+  def home():
+    return render('start.html')
+
+
+  # Handle the POSTs
+  if post: 
+    if 'start' in post:
+      return start_trial(post)
+    else:
+      mycontext['started'] = False
+  return home()
+
+
+
+if callfunc == 'initialize': 
+  time_updatetime(list(getresources()[0]["messport"])[0])
+  # Get a conn port for the web app
+  port = list(getresources()[0]['connport'])[0]
+  log('Web app on port', port, '\n')
+  stophandler = registerhttpcallback('http://127.0.0.1:'+str(port), serve)
+  
+
+# syntax highlight: -*- mode: python;-*-

@@ -1,0 +1,68 @@
+from matrix import *
+import math
+
+z_axis = [[0], [0], [1]]
+
+minus_phone_gravity = [[0.3681875099], [-0.04381765971], [-9.406126028]]
+
+compass = OrientationFilter()
+  
+
+# update the orientation with gyroscope or magnetometer data
+def update_orientation(gyro, magnet):
+  compass.get_orientation(gyro, None, magnet)
+
+
+
+# processes sensor data to estimate position
+def get_heading(sensordata):
+
+  rotation = quaternion_inverse(compass.get_orientation(sensordata))
+
+  phone_acc = [sensordata['xforce'], sensordata['yfoce'], sensordata['zforce'], 0]
+
+  # Quaternion phone-to-world transformation (an inverse rotation)
+  acc = [quaternion_multiply(rotation, phone_acc)]
+  minus_gravity = [quaternion_multiply(rotation, minus_gravity)]
+
+  # Subtract gravity from acc for linear acc
+  linear_acc = matrix_add(acc, minus_gravity)
+
+  # The heading will be the projection of the 
+  # linear acc onto the x-y plane. This is obtained
+  # by subtracting the projection of the linear acc
+  # onto the z-axis from the linear acc vector.
+  minus_z_projection = matrix_scale(z_axis, -matrix_dot_product(linear_acc, z_axis))
+  heading = matrix_add(linear_acc, minus_z_projection)
+
+  # theta = math.atan2(heading[1][0], heading[0][0]) * 180 / math.pi + 160
+  # print str(heading) + ': ' + str(theta)
+  return heading
+
+
+# Parses txt file into lists of data
+def parse_sensor_data(filename):
+  data = []
+  with open(filename, 'r') as f:
+    for line in f:
+      # data is separated by tabs
+      entry = line.split('\t')
+      # remove leftover empty strings
+      entry = list(filter(lambda element: element != '', entry))
+      # Is it sensor data?
+      if len(entry) == 10:
+        sensordata = {}
+        sensordata['xforce'] = float(entry[1])
+        sensordata['yforce'] = float(entry[2])
+        sensordata['zforce'] = float(entry[3])
+        sensordata['pitch'] = float(entry[4])
+        sensordata['roll'] = float(entry[5])
+        sensordata['azimuth'] = float(entry[6])
+        data.append(sensordata)
+  return data
+
+if __name__ == "__main__":
+  data = parse_sensor_data('data.txt')
+  for entry in data:
+    process(entry)
+# -*- mode: python;-*-
