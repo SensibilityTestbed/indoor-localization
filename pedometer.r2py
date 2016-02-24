@@ -69,10 +69,13 @@ class Pedometer:
 
     
     # step detection
+    peak = self._detect_peak(lpf_mag, time)
+    zero = self._detect_zero(lpf_mag, time)
     if method == 1:
-      return self._detect_peak(lpf_mag, time)
+      return peak
     else:
-      return self._detect_zero(lpf_mag, time) # or self._detect_peak(lpf_mag, time)
+      return zero
+
 
  
 
@@ -84,13 +87,12 @@ class Pedometer:
   # crossing noise level and actual step interval > minimum step interval
   def _detect_zero(self, data, time):
     stepped = False
-    if self.lastmag <= self.threshold and data > self.threshold and \
-        time - self.steptime > ZERO_INTERVAL:
+    if self.lastmag <= self.threshold and data > self.threshold and time - self.steptime >= ZERO_INTERVAL:
       self.zerocount += 1
       self.steptime = time
       #log("Time:", time, "Step count:", self.zerocount, '\n')
-      self.lastmag = data
       stepped = True
+    self.lastmag = data
 
     return stepped
 

@@ -12,10 +12,10 @@
 a0 = 0.0201
 a1 = 0.0402
 a2 = 0.0201
-b1 = 1.5610
-b2 = -0.6414
+b1 = -1.5610
+b2 = 0.6414
 
-# y(k) = a0x(k) + a1x(k-1) + a2x(k-2) + b1y(k-1) + b2y(k-2)
+# y(k) = a0x(k) + a1x(k-1) + a2x(k-2) - b1y(k-1) - b2y(k-2)
 # cut off frequency = 10HZ
 
 class LowPassFilter:
@@ -46,7 +46,7 @@ class LowPassFilter:
 
 		# will change to queue later
 		elif length == 2:
-			filtered_magNoG = a0 * data + a1 * self.mag_list[1] + a2 * self.mag_list[0] + b1 * self.output_list[1] + b2 * self.output_list[0]
+			filtered_magNoG = a0 * data + a1 * self.mag_list[1] + a2 * self.mag_list[0] - b1 * self.output_list[1] - b2 * self.output_list[0]
 			self.mag_list[0] = self.mag_list[1]
 			self.mag_list[1] = data
 			self.output_list[0] = self.output_list[1]
