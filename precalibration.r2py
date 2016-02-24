@@ -27,6 +27,7 @@ class PreCalibration:
     self.calibrate()
         
 
+
   # pre-calibration stage, initialize coefficient of filters and threshold of noise level 
   def calibrate(self):
     #log("Welcome to pedometer!\nSystem pre calibration, please wait a while\n")
@@ -59,6 +60,8 @@ class PreCalibration:
 
 
 
+
+
     # gravity constant estimated by mean of acceleration
   def get_gravity(self):
   sum_mag = 0.0
@@ -81,6 +84,7 @@ class PreCalibration:
     moving_average_sample = 4
   log("\nSamplingrate:", moving_average_sample, '\n')
   return moving_average_sample 
+
 
 
 

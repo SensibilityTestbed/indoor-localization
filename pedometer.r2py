@@ -83,10 +83,14 @@ class Pedometer:
       return zero
 
 
+
  
 
   def get_stepcount(self):
     return (self.zerocount, self.peakcount) 
+
+
+
 
 
   def get_distance(self):
@@ -154,6 +158,11 @@ class Pedometer:
         self.timelist = []
   
     return stepped
+
+
+
+
+
 
   def _distance_estimation(self, lasttime, currenttime):
     interval = currenttime - lasttime
