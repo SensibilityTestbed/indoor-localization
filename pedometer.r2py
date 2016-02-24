@@ -55,6 +55,7 @@ class Pedometer:
     self.timelist = []
     self.max_mag = self.threshold
     self.max_time = self.peaktime
+    self.last_peak_time = self.max_time
     self.flag = 1
 
     self.distance_zero = []
@@ -153,11 +154,11 @@ class Pedometer:
         self.peakcount += 1
         stepped = True
 
-        self.distance_peak.append(self._distance_estimation(self.peaktime, time))
+        self.distance_peak.append(self._distance_estimation(self.last_peak_time, self.max_time))
         self.time_peak.append(time)
         log("peak count: ", self.peakcount, '\n')
         self.peaktime = time
-        # self.last_max = self.max_mag
+        self.last_peak_time = self.max_time
         self.max_mag = self.threshold
   # self.last_maxtime = self.maxtime
         self.maglist = []
