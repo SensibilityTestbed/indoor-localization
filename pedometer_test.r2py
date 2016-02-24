@@ -6,17 +6,19 @@ HEIGHT = 175
 
 
 def pedometer_thread(ped):
-  start_time = getruntime()
-  while getruntime() - start_time  < 120:
-    time = getruntime()
-    try:
-      if ped.detect_step(get_sensors(), time, 1):
-        log("Stepped\n")
-    except:
-      stop_sensing()
-  stop_sensing()
-  log(ped.get_stepcount(),'\n')
-  log(ped.get_distance(), '\n')
+  def func():
+    start_time = getruntime()
+    while getruntime() - start_time  < 20:
+      time = getruntime()
+      try:
+        if ped.detect_step(get_sensors(), time, 1):
+          log("Stepped\n")
+      except:
+        stop_sensing()
+    stop_sensing()
+    log(ped.get_stepcount(),'\n')
+    log(ped.get_distance(), '\n')
+  return func
 
 
 
@@ -27,5 +29,5 @@ start_sensing(1, 0)
 pre = PreCalibration(100)
 ped = Pedometer(pre,HEIGHT)
 
-pedometer_thread(ped)
+createthread(pedometer_thread(ped))
 
