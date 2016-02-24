@@ -34,27 +34,33 @@ PEAK_INTERVAL = 0.5
 # Peodmeter class, includes filtering raw data and step estimation
 class Pedometer:
   def __init__(self, precalibration, height):
+    # Coefficient from pre-calibration stage
     self.gravity_constant = precalibration.get_gravity()
     self.samplerate = precalibration.get_sample_rate()
-    self.moving_rate = int(0.125 * self.samplerate)
-    if self.moving_rate < 4:
-      self.moving_rate = 4
     self.threshold = precalibration.get_threshold()
+    self.steptime = precalibration.time
 
-    # Initialize moving average filter and step detection
-    self.maf = MovingAverageFilter(self.moving_rate, precalibration.time, 0.125)
+
+    # Initialize moving average filter
+    moving_window_size = int(0.125 * self.samplerate)
+    # minimum moving average filter window = 4
+    if moving_window_size < 4:
+      moving_window_size = 4
+    self.maf = MovingAverageFilter(moving_window_size, precalibration.time, 0.125)
+
+    # Initialize low pass filter
     self.lpf = LowPassFilter(precalibration.time, 0.25)
 
-    self.height = 175
-    self.steptime = precalibration.time
+    self.height = height
+
     self.zerocount = 0
     self.lastmag = 0.0
     self.peakcount = 0
-    self.peaktime = self.steptime
+    self.peak_window_start = self.steptime
     self.maglist = []
     self.timelist = []
     self.max_mag = self.threshold
-    self.max_time = self.peaktime
+    self.max_time = self.peak_window_start
     self.last_peak_time = self.max_time
     self.flag = 1
 
@@ -108,6 +114,8 @@ class Pedometer:
       for i in range(0, len(self.distance_peak)):
         sum_peak += self.distance_peak[i]
 
+    # Average of people's stride is height * 0.415
+    # Average stride works as reference
     average_zero_distance = self.zerocount * 0.415 * self.height/100
     average_peak_distance = self.peakcount * 0.415 * self.height/100
     return {"distance_estimation_zero": sum_zero, "distance_estimation_peak": sum_peak, "average_zero_distance": average_zero_distance, "average_peak_distance": average_peak_distance}
@@ -139,7 +147,7 @@ class Pedometer:
     self.maglist.append(data)
     self.timelist.append(time)
 
-    if time - self.peaktime >= PEAK_INTERVAL * self.flag:
+    if time - self.peak_window_start >= PEAK_INTERVAL * self.flag:
       for i in range(1, len(self.maglist)-1):
         if self.maglist[i-1] <= self.maglist[i] and self.maglist[i] > self.maglist[i+1] and \
             self.maglist[i] > self.max_mag:
@@ -157,7 +165,7 @@ class Pedometer:
         self.distance_peak.append(self._distance_estimation(self.last_peak_time, self.max_time))
         self.time_peak.append(time)
         log("peak count: ", self.peakcount, '\n')
-        self.peaktime = time
+        self.peak_window_start = time
         self.last_peak_time = self.max_time
         self.max_mag = self.threshold
   # self.last_maxtime = self.maxtime
@@ -170,7 +178,7 @@ class Pedometer:
 
 
 
-
+  # Distance estimation by height and steps frequency  
   def _distance_estimation(self, lasttime, currenttime):
     interval = currenttime - lasttime
     step_per_second = 1.0/interval
