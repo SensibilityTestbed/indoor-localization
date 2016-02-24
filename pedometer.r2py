@@ -1,19 +1,20 @@
+
 """
 <Program Name>
   pedometer.r2py
-
 <Purpose>
   This is a script for walking step counter. Analysis of the sensor data 
   from accelerometer to detect the walking / running steps. Introducing
   pre-calibration stage, noise level threshold and moving average filter
   to accurate step detection for difference devices.
-
   *Note: the device must be stable for 1 second pre-calibration from beginning
 """
 
 
 
 
+dy_import_module_symbols('getsensor.r2py')
+dy_import_module_symbols('pre_calibration.r2py')
 dy_import_module_symbols('moving_average.r2py')
 dy_import_module_symbols('low_pass_filter.r2py')
 
@@ -29,13 +30,62 @@ PEAK_INTERVAL = 0.5
 
 
 
+# get acceleration data from sensor
+def mag_acceleration(data):
+  return (data['xforce'] ** 2 + data['yforce'] ** 2 + data['zforce'] ** 2) ** 0.5
+
+
+
+
+
+
 # log coefficient after pre-calibration stage
+
 def log_coefficient(gravity_constant, moving_rate, threshold):
-	log("Pre calibration done!\n")
-	log("Grvaity Constant:", gravity_constant, 
-			"\nMoving Average Filter Window Sampling Number:", moving_rate, 
-			"\nThreshold:", threshold, '\n')
-	log("Please walk around\n")
+  log("Pre calibration done!\n")
+  log("Grvaity Constant:", gravity_constant, 
+      "\nMoving Average Filter Window Sampling Number:", moving_rate, 
+      "\nThreshold:", threshold, '\n')
+  log("Please walk around\n")
+
+
+
+
+
+# start pedometer module
+def start_pedometer(number = 100):
+  pre = PreCalibration(number)
+  step = Pedometer(pre)
+  step.start()
+  return step
+
+
+
+
+
+# stop pedometer module
+def stop_pedometer(step):
+  step.stop()
+  sleep(0.1)
+
+
+
+
+
+# get pedometer data
+def get_pedometer_data(step):
+  return step.get_data()
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Peodmeter class, includes filtering raw data and step estimation
@@ -50,6 +100,7 @@ class Pedometer:
     self.lpf = LowPassFilter(precalibration.time, 0.25)
 
     self.steptime = precalibration.time
+    #log_coefficient(gravity_constant, moving_rate, threshold)
 
 
     self.zerocount = 0
@@ -62,14 +113,11 @@ class Pedometer:
     self.max_mag = self.threshold
     self.max_time = self.peaktime
     self.flag = 1
-
-    log_coefficient(gravity_constant, moving_rate, threshold)
-    
     
 
     
 
-  def detect_step(self,raw_acc, time, method=0):	
+  def detect_step(self, raw_acc, time, method = 0): 
 
     # Non-gravity acceleration
     raw_mag = mag_acceleration(raw_acc) - self.gravity_constant
@@ -85,8 +133,7 @@ class Pedometer:
     if method == 1:
       return self._detect_peak(lpf_mag, time)
     else:
-      return self._detect_zero(lpf_mag, time)
-    # return self._detect_zero(lpf_mag, time) or self._detect_peak(lpf_mag, time)
+      return self._detect_zero(lpf_mag, time) # or self._detect_peak(lpf_mag, time)
 
  
 
@@ -108,7 +155,7 @@ class Pedometer:
 
     return stepped
 
-	
+  
   # a moving window to capture the peak
   # will change to queue later
   def _detect_peak(self, data, time): 
@@ -120,22 +167,22 @@ class Pedometer:
       for i in range(1, len(self.maglist)-1):
         if self.maglist[i-1] <= self.maglist[i] and self.maglist[i] > self.maglist[i+1] and \
             self.maglist[i] > self.max_mag:
-	  self.max_mag = self.maglist[i]
+          self.max_mag = self.maglist[i]
           self.max_time = self.timelist[i]
-	  self.flag = 0
+          self.flag = 0
 
       if self.flag:
         self.flag += 1
       else:
         self.flag = 1
-	self.peakcount += 1
+        self.peakcount += 1
         stepped = True
         self.peaktime = time
         # self.last_max = self.max_mag
         self.max_mag = self.threshold
-	# self.last_maxtime = self.maxtime
+  # self.last_maxtime = self.maxtime
         self.maglist = []
-	self.timelist = []
+        self.timelist = []
   
     return stepped
 

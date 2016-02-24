@@ -1,14 +1,16 @@
-dy_import_module_symbols('getsensor.r2py')
+sensorlib = dy_import_module("sensorlib.r2py")
+#dy_import_module_symbols('getsensor.r2py')
 dy_import_module_symbols('pedometer.r2py')
-dy_import_module_symbols('precalibration.r2py')
+
 
 
 start_sensing(2, 0)
 
-ped = Pedometer(PreCalibration(100))
+pre = PreCalibration(100)
+ped = Pedometer(pre)
 
 start_time = getruntime()
-while getruntime() start_time  < 120::
+while getruntime() - start_time  < 120:
   time = getruntime()
 
   try:
@@ -17,4 +19,4 @@ while getruntime() start_time  < 120::
   except:
     stop_sensing()
 
-log(ped.get_stepcount())
+log(ped.get_stepcount(ped))
