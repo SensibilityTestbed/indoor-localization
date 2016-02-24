@@ -10,7 +10,7 @@
 
 dy_import_module_symbols("matrix.r2py")
 dy_import_module_symbols("stat_stream.r2py")
-
+dy_import_module_symbols('getsensor.r2py')
 
 
 class PreCalibration:
@@ -23,6 +23,8 @@ class PreCalibration:
     self.gyro_stats = StatStream()
     self.magnet_stats = StatStream()
     self.acc_stats = StatStream()
+
+    self.calibrate()
         
 
   # pre-calibration stage, initialize coefficient of filters and threshold of noise level 
@@ -37,9 +39,11 @@ class PreCalibration:
     count = 0
     while count < self.samplenum:
       self.time = getruntime()
-
       try:
-	raw_data = get_sensors()
+    	raw_data = get_sensors()
+    	if 'time' not in raw_data:
+    	  sleep(0.1)
+    	  continue
       except Exception as e:
         sleep(0.1)
         continue

@@ -10,10 +10,11 @@ ped = Pedometer(PreCalibration(100))
 start_time = getruntime()
 while getruntime() start_time  < 120::
   time = getruntime()
+
   try:
-    if ped.detect_step(get_sensors(), time):
+    if ped.detect_step(get_sensors(), time, 1):
       log("Stepped\n")
   except:
     stop_sensing()
 
-log(ped.get_stepcount(step))
+log(ped.get_stepcount())

@@ -14,12 +14,9 @@
 
 
 
-dy_import_module_symbols('getsensor.r2py')
-dy_import_module_symbols('pre_calibration.r2py')
 dy_import_module_symbols('moving_average.r2py')
 dy_import_module_symbols('low_pass_filter.r2py')
-dy_import_module_symbols('step_zero_detection.r2py')
-dy_import_module_symbols('step_peak.r2py')
+
 
 
 
@@ -53,7 +50,6 @@ class Pedometer:
     self.lpf = LowPassFilter(precalibration.time, 0.25)
 
     self.steptime = precalibration.time
-    #log_coefficient(gravity_constant, moving_rate, threshold)
 
 
     self.zerocount = 0
@@ -66,6 +62,9 @@ class Pedometer:
     self.max_mag = self.threshold
     self.max_time = self.peaktime
     self.flag = 1
+
+    log_coefficient(gravity_constant, moving_rate, threshold)
+    
     
 
     
@@ -76,16 +75,16 @@ class Pedometer:
     raw_mag = mag_acceleration(raw_acc) - self.gravity_constant
 
     # moving average filter
-    maf_mag = self.MAF.moving_average_filter(raw_mag, time)
+    maf_mag = self.maf.moving_average_filter(raw_mag, time)
 
     # linear phase low pass filter
-    lpf_mag = self.LPF.low_pass_filter(raw_mag, time)
+    lpf_mag = self.lpf.low_pass_filter(raw_mag, time)
 
     
     # step detection
-    if method:
+    if method == 1:
       return self._detect_peak(lpf_mag, time)
-    else
+    else:
       return self._detect_zero(lpf_mag, time)
     # return self._detect_zero(lpf_mag, time) or self._detect_peak(lpf_mag, time)
 
