@@ -1,0 +1,45 @@
+datakeys = ['time', 'xforce', 'yforce', 'zforce', 'pitch', 'roll', 'yaw', 'xmag', 'ymag', 'zmag']
+
+def import_csv(filename):
+  data = []
+  fh = openfile(filename, False)
+  fstr = fh.readat(None, 0)
+  for line in fstr.split('\n'):
+    strdata = line.split(',')
+    zipped = zip(datakeys, strdata)
+    entry = {zipped[0][0]: long(zipped[0][1])}
+    for key, value in zipped[1:]:
+      entry[key] = float(value)
+    data.append(entry)
+  return data
+
+
+dy_import_module_symbols('orientation_filter.r2py')
+
+
+caldata = import_csv("samsung_100hz_calibration.csv")
+
+acc_stream = StatStream()
+gyro_stream = StatStream()
+magnet_stream = StatStream()
+
+for meas in caldata:
+  acc_stream.update(matrix_row_magnitude([meas['xforce'], meas['yforce'], meas['zforce']))
+  gyro_stream.update(matrix_row_magnitude([meas['pitch'], meas['roll'], meas['yaw']))
+  magnet_stream.update(matrix_row_magnitude([meas['xmag'], meas['ymag'], meas['zmag']))
+
+pre = PreCalibration(0)
+pre.acc_stats = acc_stream 
+pre.gyro_stats = gyro_stream
+pre.magnet_stats = magnet_stream 
+
+compass = OrientationFilter(pre)
+
+data = import_csv("samsung_100hz_rotation.csv")
+
+start = getruntime()
+for entry in data:
+  log(compass.get_orientation(entry), '\n')
+end = getruntime() - start
+log("\n Total runtime: " + end) 
+  
