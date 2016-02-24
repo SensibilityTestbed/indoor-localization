@@ -2,21 +2,30 @@ sensorlib = dy_import_module("sensorlib.r2py")
 #dy_import_module_symbols('getsensor.r2py')
 dy_import_module_symbols('pedometer.r2py')
 
+HEIGHT = 175
 
 
-start_sensing(2, 0)
+def pedometer_thread(ped):
+  start_time = getruntime()
+  while getruntime() - start_time  < 120:
+    time = getruntime()
+    try:
+      if ped.detect_step(get_sensors(), time, 1):
+        log("Stepped\n")
+    except:
+      stop_sensing()
+  stop_sensing()
+  log(ped.get_stepcount(),'\n')
+  log(ped.get_distance(), '\n')
+
+
+
+
+
+start_sensing(1, 0)
 
 pre = PreCalibration(100)
-ped = Pedometer(pre)
+ped = Pedometer(pre,HEIGHT)
 
-start_time = getruntime()
-while getruntime() - start_time  < 20:
-  time = getruntime()
+pedometer_thread(ped)
 
-  try:
-    if ped.detect_step(get_sensors(), time, 1):
-      log("Stepped\n")
-  except:
-    stop_sensing()
-
-log(ped.get_stepcount())

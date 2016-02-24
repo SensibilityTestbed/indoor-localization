@@ -33,7 +33,7 @@ PEAK_INTERVAL = 0.5
 
 # Peodmeter class, includes filtering raw data and step estimation
 class Pedometer:
-  def __init__(self, precalibration):
+  def __init__(self, precalibration, height):
     self.gravity_constant = precalibration.get_gravity()
     self.moving_rate = precalibration.get_moving_rate()
     self.threshold = precalibration.get_threshold()
@@ -42,6 +42,7 @@ class Pedometer:
     self.maf = MovingAverageFilter(self.moving_rate, precalibration.time, 0.125)
     self.lpf = LowPassFilter(precalibration.time, 0.25)
 
+    self.height = 175
     self.steptime = precalibration.time
     self.zerocount = 0
     self.lastmag = 0.0
@@ -52,6 +53,11 @@ class Pedometer:
     self.max_mag = self.threshold
     self.max_time = self.peaktime
     self.flag = 1
+
+    self.distance_zero = []
+    self.time_zero = []
+    self.distance_peak = []
+    self.time_peak = []
     
 
     
@@ -83,20 +89,38 @@ class Pedometer:
     return (self.zerocount, self.peakcount) 
 
 
+  def get_distance(self):
+    sum_zero = 0.0
+    sum_peak = 0.0
+    if len(self.distance_zero) > 0:
+      for i in range(0, len(self.distance_zero)):
+        sum_zero += self.distance_zero[i]
+      
+    if len(self.distance_peak) > 0:
+      for i in range(0, len(self.distance_peak)):
+        sum_peak += self.distance_peak[i]
+    return (sum_zero, sum_peak)
+
+
+
 
   # crossing noise level and actual step interval > minimum step interval
   def _detect_zero(self, data, time):
     stepped = False
     if self.lastmag <= self.threshold and data > self.threshold and time - self.steptime >= ZERO_INTERVAL:
       self.zerocount += 1
+      self.distance_zero.append(self._distance_estimation(self.steptime, time))
+      self.time_zero.append(time)
       self.steptime = time
-      #log("Time:", time, "Step count:", self.zerocount, '\n')
+      log("zero count:", self.zerocount, '\n')
       stepped = True
     self.lastmag = data
 
     return stepped
 
   
+
+
   # a moving window to capture the peak
   # will change to queue later
   def _detect_peak(self, data, time): 
@@ -118,6 +142,10 @@ class Pedometer:
         self.flag = 1
         self.peakcount += 1
         stepped = True
+
+        self.distance_peak.append(self._distance_estimation(self.peaktime, time))
+        self.time_peak.append(time)
+        log("peak count: ", self.peakcount, '\n')
         self.peaktime = time
         # self.last_max = self.max_mag
         self.max_mag = self.threshold
@@ -126,5 +154,31 @@ class Pedometer:
         self.timelist = []
   
     return stepped
+
+  def _distance_estimation(self, lasttime, currenttime):
+    interval = currenttime - lasttime
+    step_per_second = 1.0/interval
+    if 0.0 <= step_per_second < 1.0:
+      stride_per_step = self.height/5.0
+    elif 1.0 <= step_per_second < 1.5:
+      stride_per_step = self.height/4.0
+    elif 1.5 <= step_per_second < 2.0:
+      stride_per_step = self.height/3.0
+    elif 2.0 <= step_per_second < 2.5:
+      stride_per_step = self.height/2.0
+    elif 2.5 <= step_per_second < 3.0:
+      stride_per_step = self.height/1.2
+    elif 3.0 <= step_per_second < 4.0:
+      stride_per_step = self.height
+    else:
+      stride_per_step = self.height * 1.2
+
+    speed_per_second = step_per_second * stride_per_step
+    step_length = speed_per_second * interval
+
+    if interval > 1.0 or step_length > 300.0:
+      step_length = self.height * 0.415
+
+    return step_length/100
 
 # -*- mode: python;-*-
