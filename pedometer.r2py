@@ -14,7 +14,7 @@
 
 
 dy_import_module_symbols('getsensor.r2py')
-dy_import_module_symbols('pre_calibration.r2py')
+dy_import_module_symbols('precalibration.r2py')
 dy_import_module_symbols('moving_average.r2py')
 dy_import_module_symbols('low_pass_filter.r2py')
 
@@ -35,7 +35,10 @@ PEAK_INTERVAL = 0.5
 class Pedometer:
   def __init__(self, precalibration, height):
     self.gravity_constant = precalibration.get_gravity()
-    self.moving_rate = precalibration.get_moving_rate()
+    self.samplerate = precalibration.get_sample_rate()
+    self.moving_rate = int(0.125 * self.samplerate)
+    if self.moving_rate < 4:
+      self.moving_rate = 4
     self.threshold = precalibration.get_threshold()
 
     # Initialize moving average filter and step detection
@@ -87,7 +90,7 @@ class Pedometer:
  
 
   def get_stepcount(self):
-    return (self.zerocount, self.peakcount) 
+    return {"zero": self.zerocount, "peak": self.peakcount} 
 
 
 
@@ -103,7 +106,10 @@ class Pedometer:
     if len(self.distance_peak) > 0:
       for i in range(0, len(self.distance_peak)):
         sum_peak += self.distance_peak[i]
-    return (sum_zero, sum_peak)
+
+    average_zero_distance = self.zerocount * 0.415 * self.height/100
+    average_peak_distance = self.peakcount * 0.415 * self.height/100
+    return {"distance_estimation_zero": sum_zero, "distance_estimation_peak": sum_peak, "average_zero_distance": average_zero_distance, "average_peak_distance": average_peak_distance}
 
 
 
