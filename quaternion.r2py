@@ -24,15 +24,19 @@ def quaternion_tilt(acc):
 # Multiplies two quaternions and returns the result
 def quaternion_multiply(q1, q2):
   q = [0.0] * 4
-  q[0] = q1[0]*q2[1] + q1[1]*q2[0] + q1[2]*q2[3] - q1[3]*q2[2]
-  q[1] = q1[0]*q2[2] - q1[1]*q2[3] + q1[2]*q2[0] + q1[3]*q2[1]
-  q[2] = q1[0]*q2[3] + q1[1]*q2[2] - q1[2]*q2[1] + q1[3]*q2[0]
-  q[3] = q1[0]*q2[0] - q1[1]*q2[1] - q1[2]*q2[2] - q1[3]*q2[3]
+  q[0] = q2[3]*q1[0] + q2[0]*q1[3] - q2[1]*q1[2] + q2[2]*q1[1]
+  q[1] = q2[3]*q1[1] + q2[0]*q1[2] + q2[1]*q1[3] - q2[2]*q1[0]
+  q[2] = q2[3]*q1[2] - q2[0]*q1[1] + q2[1]*q1[0] + q2[2]*q1[3]
+  q[3] = q2[3]*q1[3] - q2[0]*q1[0] - q2[1]*q1[1] - q2[2]*q1[2]
   return q
 
 
 def quaternion_inverse(q):
-  matrix_multiply([q], [[-1
+  return matrix_multiply(matrix_multiply([q[:3]], -1), 1.0 / matrix_row_magnitude(q))
+
+
+def quaternion_rotate(q, v):
+  return quaternion_multiply(quaternion_multiply(q, v), quaternion_inverse(q))
 
 
 # Builds a skew symmetric 
