@@ -48,12 +48,11 @@ class PreCalibration:
       except Exception as e:
         sleep(0.1)
         continue
-      log(raw_data, '\n')
       mag = matrix_row_magnitude([raw_data['xforce'], raw_data['yforce'], raw_data['zforce']])
       self.mag_list.append(mag)
       self.acc_stats.update(mag)
-      #self.gyro_stats.update(matrix_row_magnitude([raw_data['roll'], raw_data['pitch'], raw_data['yaw']]))
-      #self.magnet_stats.update(matrix_row_magnitude([raw_data['xMag'], raw_data['yMag'], raw_data['zMag']]))
+      self.gyro_stats.update(matrix_row_magnitude([raw_data['roll'], raw_data['pitch'], raw_data['azimuth']]))
+      self.magnet_stats.update(matrix_row_magnitude([raw_data['xMag'], raw_data['yMag'], raw_data['zMag']]))
       count += 1 
 
 
