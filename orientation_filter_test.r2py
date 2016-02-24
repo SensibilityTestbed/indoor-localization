@@ -3,7 +3,7 @@ dy_import_module_symbols('getsensor.r2py')
 
 MAX = 2000  # approx 10s (at 200Hz)
 
-compass = OrientationFilter()
+compass = OrientationFilter(PreCalibration(100))
 mutex = createlock()
 
 def log_orientation(measurements):

@@ -42,13 +42,15 @@ class UncalibratedError(RepyException):
 
 
 class OrientationFilter(ExtendedKalmanFilter):
-  def __init__(self, gyro_cal, acc_cal, magnet_cal): 
+  def __init__(self, precalibration): 
     self._acc = [0.0] * 3
     self._magnet = [0.0] * 3
     self._gyro_stats = precalibration.gyro_stats 
     self._acc_stats = precalibration.acc_stats
     self._magnet_stats = precalibration.magnet_stats
     self._local_dip = METROTECH_DIP    
+    state = matrix_transpose([1, 0, 0, 0, ax, ay, az, mx, my, mz])
+    
     ExtendedKalmanFilter.__init__(
 
    
