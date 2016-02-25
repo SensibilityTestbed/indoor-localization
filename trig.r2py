@@ -15,60 +15,60 @@ earthRadiusKm = 6371.0
 
 # converts decimal degrees to radians
 def deg2rad(deg):
-	return (deg * pi / 180)
+  return (deg * pi / 180)
 
 # converts radians to decimal degrees
 def rad2deg(rad):
-	return (rad * 180 / pi)
+  return (rad * 180 / pi)
 
 
 TERMS = 11
 
 def factorial(x):
-	result = 1 
-	for num in range(x):
-		result *= (num + 1)
-	return result
+  result = 1 
+  for num in range(x):
+    result *= (num + 1)
+  return result
 
 
 def combine(x):
-	numerator = 1.0
-	denominator = 1.0
-	for num in range(x+1, x * 2 + 1):
-		numerator *= num
-	for num in range(1, x+1):
-		denominator *= num
-	return numerator / denominator
+  numerator = 1.0
+  denominator = 1.0
+  for num in range(x+1, x * 2 + 1):
+    numerator *= num
+  for num in range(1, x+1):
+    denominator *= num
+  return numerator / denominator
 
 
 def cos(x):
-	taylorsum = 0.0
-	for n in range(TERMS):
-		taylorsum += (-1)**n * (x**(2.0*n) / factorial(2*n))
-	return max(min(taylorsum, 1), -1)
+  taylorsum = 0.0
+  for n in range(TERMS):
+    taylorsum += (-1)**n * (x**(2.0*n) / factorial(2*n))
+  return max(min(taylorsum, 1), -1)
 
 def sin(x):
-	return (1-cos(x)**2)**0.5
+  return (1-cos(x)**2)**0.5
 
 
 def tan(x):
-	return sin(x)/cos(x)
+  return sin(x)/cos(x)
 
 
 def asin(x):
-	taylorsum = 0.0
-	for n in range(TERMS):
-		taylorsum += combine(n) * x ** (2 * n + 1) / (4 ** n * (2 * n + 1))
-	return taylorsum
+  taylorsum = 0.0
+  for n in range(TERMS):
+    taylorsum += combine(n) * x ** (2 * n + 1) / (4 ** n * (2 * n + 1))
+  return taylorsum
 
 
 # Returns the distance between two points on the Earth with geo coefficient
 def distanceEarth(lat1d, lon1d, lat2d, lon2d):
-	lat1r = deg2rad(lat1d)
-	lon1r = deg2rad(lon1d)
-	lat2r = deg2rad(lat2d)
-	lon2r = deg2rad(lon2d)
-	u = sin((lat2r - lat1r)/2)
-	v = sin((lon2r - lon1r)/2)
-	return 2.0 * earthRadiusKm * asin((u * u + cos(lat1r) * cos(lat2r) * v * v)**0.5)
+  lat1r = deg2rad(lat1d)
+  lon1r = deg2rad(lon1d)
+  lat2r = deg2rad(lat2d)
+  lon2r = deg2rad(lon2d)
+  u = sin((lat2r - lat1r)/2)
+  v = sin((lon2r - lon1r)/2)
+  return 2.0 * earthRadiusKm * asin((u * u + cos(lat1r) * cos(lat2r) * v * v)**0.5)
 
