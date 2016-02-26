@@ -7,9 +7,8 @@
   distance calculation by geo coordinate
 """
 
-pi = 3.14159265358979323846
-earthRadiusKm = 6371.0
 
+pi = 3.14159265358979323846
 
 
 
@@ -60,15 +59,4 @@ def asin(x):
   for n in range(TERMS):
     taylorsum += combine(n) * x ** (2 * n + 1) / (4 ** n * (2 * n + 1))
   return taylorsum
-
-
-# Returns the distance between two points on the Earth with geo coefficient
-def distanceEarth(lat1d, lon1d, lat2d, lon2d):
-  lat1r = deg2rad(lat1d)
-  lon1r = deg2rad(lon1d)
-  lat2r = deg2rad(lat2d)
-  lon2r = deg2rad(lon2d)
-  u = sin((lat2r - lat1r)/2)
-  v = sin((lon2r - lon1r)/2)
-  return 2.0 * earthRadiusKm * asin((u * u + cos(lat1r) * cos(lat2r) * v * v)**0.5)
 

@@ -12,7 +12,7 @@ SENSOR_SELECOTR = 1
 def pedometer_thread(ped):
   def func():
     start_time = getruntime()
-    while getruntime() - start_time  < 20:
+    while getruntime() - start_time  < 60:
       time = getruntime()
       try:
         if ped.detect_step(get_sensors(), time, 1):
@@ -29,8 +29,9 @@ def pedometer_thread(ped):
 
 
 start_sensing(SENSOR_SELECOTR, 0)
-
+log("1111111111\n")
 pre = PreCalibration(SENSOR_SELECOTR, 100)
+log("YOYOYO\n")
 ped = Pedometer(pre,HEIGHT)
 
 createthread(pedometer_thread(ped))

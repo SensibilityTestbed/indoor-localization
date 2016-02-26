@@ -16,6 +16,7 @@ dy_import_module_symbols('getsensor.r2py')
 
 class PreCalibration:
   def __init__(self, SENSOR_SELECOTR, samplenum):
+    log("YOYOYO11111111\n")
     self.samplenum = samplenum
     self.mag_list = []
     self.start_time = 0
@@ -25,7 +26,7 @@ class PreCalibration:
     self.magnet_stats = StatStream()
     self.acc_stats = StatStream()
     self.sensor = SENSOR_SELECOTR
-
+    log("YOYOYO\n")
     self.calibrate()
         
 
@@ -52,7 +53,7 @@ class PreCalibration:
 
       mag = matrix_row_magnitude([raw_data['xforce'], raw_data['yforce'], raw_data['zforce']])
       self.mag_list.append(mag)
-      
+
       if self.sensor == 1:
         self.acc_stats.update(mag)
         self.gyro_stats.update(matrix_row_magnitude([raw_data['roll'], raw_data['pitch'], raw_data['azimuth']]))

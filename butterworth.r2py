@@ -1,0 +1,66 @@
+"""
+<Program Name>
+  butterworth.r2py
+
+<Purpose>
+  This is a script for low/high pass filter to filter out 
+  the raw acceleration data with 10HZ cut off frequency. 
+  Introducing an preset maximum sample interval to avoid device lag.
+"""
+
+
+dy_import_module_symbols('trig.r2py')
+
+
+# y(k) = b0x(k) + b1x(k-1) + b2x(k-2) - a1y(k-1) - a2y(k-2)
+
+
+class ButterworthFilter:
+  def __init__(self, cutoff_frequency, sampling_frequency, current_time, threshold):
+    self.mag_list = []
+    self.output_list = []
+
+    omegaC = cutoff_frequency/sampling_frequency
+    ita = 1.0 / tan(pi * omegaC)
+    q = 2 ** 0.5
+
+    self.b0 = 1.0 / (1.0 + q*ita + ita*ita)
+    self.b1 = 2*self.b0
+    self.b2 = self.b0
+    self.a1 = -2.0 * (ita*ita - 1.0) * self.b0
+    self.a2 = (1.0 - q*ita + ita*ita) * self.b0
+
+    self.last_time = current_time
+    self.threshold = threshold
+
+
+  # lowpassfilter filter smooth the curve
+  def filter(self, data, current_time):
+    # avoid device lag
+    # different sampling time interval will reduce the filter's accuracy
+
+    if current_time - self.last_time > self.threshold:
+      self.mag_list = []
+      self.output_list = []
+
+    length = len(self.mag_list)
+
+    if length < 2:
+      self.mag_list.append(data)
+      self.output_list.append(data)
+      filtered_magNoG = data
+
+    # will change to queue later
+    elif length == 2:
+      filtered_magNoG = self.b0 * data + self.b1 * self.mag_list[1] + self.b2 * self.mag_list[0] - self.a1 * self.output_list[1] - self.a2 * self.output_list[0]
+      self.mag_list[0] = self.mag_list[1]
+      self.mag_list[1] = data
+      self.output_list[0] = self.output_list[1]
+      self.output_list[1] = filtered_magNoG
+
+    self.last_time = current_time
+    return filtered_magNoG
+
+
+
+# -*- mode: python;-*-
