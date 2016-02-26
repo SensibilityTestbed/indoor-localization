@@ -7,7 +7,7 @@
   Matrices are taken to be two-dimensional lists.
 """
 
-dy_import_module_symbols('math.r2py')
+dy_import_module_symbols('trig.r2py')
 
 class MatrixDimensionsError(RepyException):
   """For operations that can't be done on a matrix due to size"""
@@ -84,7 +84,7 @@ def matrix_multiply(left, right):
 # Returns the dot product of two vectors
 def matrix_dot_product(left, right):
   if len(left) != len(right):
-    raise MatrixDimensionsError("Vectors must be the size.")
+    raise MatrixDimensionsError("Vectors must be the same size.")
   dot_product = 0.0
   # multiply element-wise and sum the results
   for row in range(len(left)):
@@ -171,9 +171,8 @@ def matrix_exponential_skew_symmetric(matrix):
       mag += matrix[row][col] ** 2 
   mag = mag ** 0.5
 
-  return matrix_identity(len(matrix)) + matrix_scale(matrix, math_sin(mag) / mag) + \
-      matrix_scale(matrix_multiply(matrix, matrix), (1 - cos(mag)) / (mag ** 2))
-  
+  exp = matrix_add(matrix_identity(len(matrix)), matrix_scale(matrix, sin(mag) / mag))
+  return matrix_add(exp, matrix_scale(matrix_multiply(matrix, matrix), (1 - cos(mag)) / (mag ** 2))) 
 
 
 # Calculates the determinant of a 2x2 matrix

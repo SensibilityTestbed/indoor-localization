@@ -11,7 +11,7 @@
 
 dy_import_module_symbols("matrix.r2py")
 dy_import_module_symbols("stat_stream.r2py")
-dy_import_module_symbols('getsensor.r2py')
+#dy_import_module_symbols('getsensor.r2py')
 
 
 class PreCalibration:
@@ -26,9 +26,9 @@ class PreCalibration:
     self.acc_stats = StatStream()
     self.sensor = SENSOR_SELECOTR
 
-    self.calibrate()
+    #self.calibrate()
         
-
+  """
   # pre-calibration stage, initialize coefficient of filters and threshold of noise level 
   def calibrate(self):
     log("Welcome to pedometer!\nSystem pre calibration, please wait a while\n")
@@ -58,7 +58,7 @@ class PreCalibration:
         self.gyro_stats.update(matrix_row_magnitude([raw_data['roll'], raw_data['pitch'], raw_data['azimuth']]))
         self.magnet_stats.update(matrix_row_magnitude([raw_data['xMag'], raw_data['yMag'], raw_data['zMag']]))
       count += 1 
-
+  """
 
 
 

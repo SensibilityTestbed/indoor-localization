@@ -4,18 +4,20 @@ def import_csv(filename):
   data = []
   fh = openfile(filename, False)
   fstr = fh.readat(None, 0)
+  fstr = fstr[fstr.find('\n')+1:-1]
   for line in fstr.split('\n'):
     strdata = line.split(',')
     zipped = zip(datakeys, strdata)
-    entry = {zipped[0][0]: long(zipped[0][1])}
-    for key, value in zipped[1:]:
+    entry = {}
+    for key, value in zipped:
       entry[key] = float(value)
     data.append(entry)
   return data
 
 
 dy_import_module_symbols('orientation_filter.r2py')
-
+dy_import_module_symbols('stat_stream.r2py')
+dy_import_module_symbols('precalibration.r2py')
 
 caldata = import_csv("samsung_100hz_calibration.csv")
 
@@ -24,22 +26,27 @@ gyro_stream = StatStream()
 magnet_stream = StatStream()
 
 for meas in caldata:
-  acc_stream.update(matrix_row_magnitude([meas['xforce'], meas['yforce'], meas['zforce']))
-  gyro_stream.update(matrix_row_magnitude([meas['pitch'], meas['roll'], meas['yaw']))
-  magnet_stream.update(matrix_row_magnitude([meas['xmag'], meas['ymag'], meas['zmag']))
+  acc_stream.update(matrix_row_magnitude([meas['xforce'], meas['yforce'], meas['zforce']]))
+  gyro_stream.update(matrix_row_magnitude([meas['pitch'], meas['roll'], meas['yaw']]))
+  magnet_stream.update(matrix_row_magnitude([meas['xmag'], meas['ymag'], meas['zmag']]))
 
-pre = PreCalibration(0)
+pre = PreCalibration(1, 0)
 pre.acc_stats = acc_stream 
 pre.gyro_stats = gyro_stream
 pre.magnet_stats = magnet_stream 
+
 
 compass = OrientationFilter(pre)
 
 data = import_csv("samsung_100hz_rotation.csv")
 
+v = [0.0, 0.0, 1.0, 0.0]
 start = getruntime()
 for entry in data:
-  log(compass.get_orientation(entry), '\n')
+  q = compass.get_orientation(entry)
+  log("q = ", q, '\n')
+  log("v = ", quaternion_rotate(q, v), '\n')
+
 end = getruntime() - start
 log("\n Total runtime: " + end) 
   

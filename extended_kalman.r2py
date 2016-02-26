@@ -25,12 +25,12 @@ class KalmanFilterError(RepyException):
   """Error for unimplemented Kalman methods in child classes"""
 
 
-class ExtendedKalmanFilter():
+class ExtendedKalmanFilter:
 
   def __init__(self, state, error):
     self._state = state
     self._error = error
-    self._time = 0
+    self._time = 9223372036854775807
     self._timestep = 0
 
   # Computes the a priori state estimate,
@@ -46,7 +46,11 @@ class ExtendedKalmanFilter():
   # Computes the error covariance in the prediction step.
   def _compute_a_priori_error(self, transition_matrix):
     error = matrix_multiply(matrix_multiply(transition_matrix, self._error), matrix_transpose(transition_matrix))
-    self._error = matrix_add(error, self._compute_process_covariance)
+    process = self._compute_process_covariance()
+    #log("error:", len(error), "process:", len(process), "error:", error, '\n')
+    #self._error = matrix_add(error, self._compute_process_covariance())
+    self._error = matrix_add(error, process) 
+    
 
 
   def _compute_measurement_covariance(self):
@@ -57,9 +61,9 @@ class ExtendedKalmanFilter():
   # to trust measurements based on the probability each 
   # measurement has of representing the the true state.
   def _compute_gain(self, jacobian_matrix):
-    jacobian_transpose = matrix_transpose(jacobian)
+    jacobian_transpose = matrix_transpose(jacobian_matrix)
     left = matrix_multiply(self._error, jacobian_transpose)  
-    right = matrix_add(matrix_multiply(matrix_multiply(jacobian, self._error), jacobian_transpose), self._compute_measurement_covariance)
+    right = matrix_add(matrix_multiply(matrix_multiply(jacobian_matrix, self._error), jacobian_transpose), self._compute_measurement_covariance)
     return matrix_multiply(left, matrix_inverse(right))
 
 
@@ -91,7 +95,7 @@ class ExtendedKalmanFilter():
   # *** Note *** 
   # The implementation of this "abstract" method is left as an exercise
   # for the caller since it is dependent on the state definition.
-  def _compute_transition_matrix(self, input_vector, timestep):
+  def _compute_transition_matrix(self, input_vector):
     raise KalmanFilterError("Abstract method _compute_transition_matrix(self, input_vector, timestep)" + \
         " not defined in ExtendedKalmanFilter child class.")
 
@@ -117,18 +121,22 @@ class ExtendedKalmanFilter():
     self._timestep = time - self._time
 
     # Sanity check: did we miss a measurement?
-    if timestep < 0:
+    if self._timestep < 0:
+      # remember time of first measurement
+      if self._timestep < -1000000:
+        self._time = time 
       return
 
     self._time = time
 
     # Project ahead?
     transition_matrix = self._compute_transition_matrix(input_vector)
-    self._compute_a_apriori_state(transition_matrix)
+    self._compute_a_priori_state(transition_matrix)
     self._compute_a_priori_error(transition_matrix)
 
     # Correct the prediction
     jacobian = self._compute_jacobian_matrix()
+    log("jacobian:", jacobian, '\n') 
     gain = self._compute_gain(jacobian)
     self._compute_a_posteriori_state(gain, measurements)
     self._compute_a_posteriori_error(gain, jacobian)

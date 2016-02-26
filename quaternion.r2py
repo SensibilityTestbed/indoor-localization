@@ -6,6 +6,8 @@
   Provide functions for quaternion algebra.
 """
 
+dy_import_module_symbols("matrix.r2py")
+
 
 GRAVITY = [0.0, 0.0, 1.0]
 
@@ -32,7 +34,8 @@ def quaternion_multiply(q1, q2):
 
 
 def quaternion_inverse(q):
-  return matrix_multiply(matrix_multiply([q[:3]], -1), 1.0 / matrix_row_magnitude(q))
+  magnitude_inverse = 1.0 / matrix_row_magnitude(q)
+  return matrix_scale(matrix_scale([q[:3]], -1), magnitude_inverse)[0] + [q[3] * magnitude_inverse]
 
 
 def quaternion_rotate(q, v):
@@ -47,8 +50,8 @@ def quaternion_skew_symmetric(x, y, z):
 
 # Builds a matrix that takes the derivative of a 
 # quaternion when multiplied
-def quaternion_differentiator(roll, pitch, yaw):
-  omega = quaternion_skew_symmetric(roll, pitch, yaw)
+def quaternion_differentiator(pitch, roll, yaw):
+  omega = quaternion_skew_symmetric(pitch, roll, yaw)
   omega[0].append(roll)
   omega[1].append(pitch)
   omega[2].append(yaw)
