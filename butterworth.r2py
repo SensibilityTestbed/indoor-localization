@@ -106,3 +106,4 @@ class ButterworthFilter:
     return filtered_magNoG
 
 
+# -*- mode: python;-*-

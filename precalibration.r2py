@@ -48,7 +48,7 @@ class PreCalibration:
       except Exception as e:
         sleep(0.1)
         continue
-
+      log(raw_data, '\n')
       mag = matrix_row_magnitude([raw_data['xforce'], raw_data['yforce'], raw_data['zforce']])
       self.mag_list.append(mag)
 

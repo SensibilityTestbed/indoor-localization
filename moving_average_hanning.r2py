@@ -1,0 +1,52 @@
+"""
+<Program Name>
+  moving_average_hanning.r2py
+
+<Purpose>
+  This is a script for hanning moving average filter to filter out 
+  the raw acceleration data. Introducing an preset maximum 
+  sample interval to avoid device lag.
+"""
+
+
+
+
+# output: y[n] = (x[n] + 2*x[n-1] + x[n-2])/4
+# the delay = 1 sample
+class HanningFilter:
+  def __init__(self, current_time, threshold):
+    self.mag_list = []
+    self.window_size = 2
+    self.last_time = current_time
+    self.threshold = threshold
+
+
+
+  def hanning_filter(self, data, current_time):
+    # avoid device lag
+    # different sampling time interval will reduce the filter's accuracy
+    if current_time - self.last_time > self.threshold:
+      self.mag_list = []
+    length = len(self.mag_list)
+
+    
+
+
+    if length < self.window_size:
+      self.mag_list.append(data)
+      filtered_magNoG = data
+
+    else:
+      filtered_magNoG = (self.mag_list[0] + 2 * self.mag_list[1] + data)/4
+      self.mag_list[0] = self.mag_list[1]
+      self.mag_list[1] = data
+
+
+    self.last_time = current_time
+
+
+    return filtered_magNoG
+
+
+
+# -*- mode: python;-*-

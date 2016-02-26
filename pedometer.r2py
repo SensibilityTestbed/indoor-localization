@@ -15,7 +15,7 @@
 
 dy_import_module_symbols('getsensor.r2py')
 dy_import_module_symbols('precalibration.r2py')
-dy_import_module_symbols('moving_average.r2py')
+hanning = dy_import_module('moving_average_hanning.r2py')
 butterworth = dy_import_module('butterworth.r2py')
 
 
@@ -39,18 +39,16 @@ class Pedometer:
     self.threshold = precalibration.get_threshold()
     self.steptime = precalibration.time
 
-
     # Initialize moving average filter
-    moving_window_size = int(0.125 * self.samplerate)
-    # minimum moving average filter window = 4
-    if moving_window_size < 4:
-      moving_window_size = 4
-    if moving_window_size > 16:
-      moving_window_size = 16
-    self.maf = MovingAverageFilter(moving_window_size, precalibration.time, 0.125)
+
+ 
+    self.maf = hanning.HanningFilter(precalibration.time, 0.125)
+
 
     # Initialize low pass filter
-    self.lpf = butterworth.ButterworthFilter("low", 4.0, self.samplerate, precalibration.time, 0.25)
+    self.lpf = butterworth.ButterworthFilter("low", 4.0, self.samplerate, precalibration.time, 0.125)
+
+    self.hpf = butterworth.ButterworthFilter("high", 0.1, self.samplerate, precalibration.time, 0.125)
 
 
     self.height = height
@@ -83,9 +81,13 @@ class Pedometer:
 
     # linear phase low pass filter
     lpf_mag = self.lpf.filter(raw_mag, time)
+    #hpf_mag = self.hpf.filter(lpf_mag, time)
+
+
 
     # moving average filter
-    maf_mag = self.maf.moving_average_filter(lpf_mag, time)
+    maf_mag = self.maf.hanning_filter(lpf_mag, time)
+
 
     
     # step detection
