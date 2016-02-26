@@ -4,31 +4,75 @@
 
 <Purpose>
   This is a script for low/high pass filter to filter out 
-  the raw acceleration data with 10HZ cut off frequency. 
+  the raw data with variable cut off frequency. 
   Introducing an preset maximum sample interval to avoid device lag.
 """
 
 
-dy_import_module_symbols('trig.r2py')
+pi = 3.14159265358979323846
+TERMS = 11
+
+
+
+
+def butter_factorial(x):
+  result = 1 
+  for num in range(x):
+    result *= (num + 1)
+  return result
+
+
+
+
+
+def butter_cos(x):
+  taylorsum = 0.0
+  for n in range(TERMS):
+    taylorsum += (-1)**n * (x**(2.0*n) / butter_factorial(2*n))
+  return max(min(taylorsum, 1), -1)
+
+
+
+
+def butter_sin(x):
+  return (1-butter_cos(x)**2)**0.5
+
+
+
+
+
+def butter_tan(x):
+  return butter_sin(x)/butter_cos(x)
+
+
 
 
 # y(k) = b0x(k) + b1x(k-1) + b2x(k-2) - a1y(k-1) - a2y(k-2)
 
 
 class ButterworthFilter:
-  def __init__(self, cutoff_frequency, sampling_frequency, current_time, threshold):
+  def __init__(self, type, cutoff_frequency, sampling_frequency, current_time, threshold):
     self.mag_list = []
     self.output_list = []
 
-    omegaC = cutoff_frequency/sampling_frequency
-    ita = 1.0 / tan(pi * omegaC)
+    omegaC = cutoff_frequency / sampling_frequency
+    c = 1.0 / butter_tan(pi * omegaC)
     q = 2 ** 0.5
 
-    self.b0 = 1.0 / (1.0 + q*ita + ita*ita)
-    self.b1 = 2*self.b0
-    self.b2 = self.b0
-    self.a1 = -2.0 * (ita*ita - 1.0) * self.b0
-    self.a2 = (1.0 - q*ita + ita*ita) * self.b0
+    a0 = 1.0 + q * c + c * c
+    self.a1 = -2.0 * (c * c - 1.0) / a0
+    self.a2 = (1.0 - q * c + c * c) / a0
+ 
+    if type == "low":
+      self.b0 = 1.0 / a0
+      self.b1 = 2.0 / a0
+      self.b2 = self.b0
+    
+    elif type == "high":
+      self.b0 = c * c / a0
+      self.b1 = -2.0 * c * c / a0
+      self.b2 = self.b0
+
 
     self.last_time = current_time
     self.threshold = threshold
@@ -62,5 +106,3 @@ class ButterworthFilter:
     return filtered_magNoG
 
 
-
-# -*- mode: python;-*-

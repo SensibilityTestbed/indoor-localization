@@ -1,0 +1,7 @@
+dy_import_module_symbols('butterworth.r2py')
+x = ButterworthFilter("low", 4.0, 100.0, 1.0, 0.25)
+log(x.filter(1.0,1.1),'\n')
+log(x.filter(2.0,1.2),'\n')
+log(x.filter(3.0,1.3),'\n')
+log(x.filter(4.0,1.4),'\n')
+log(x.filter(5.0,1.5),'\n')

@@ -1,8 +1,6 @@
-sensorlib = dy_import_module("sensorlib.r2py")
-#dy_import_module_symbols('getsensor.r2py')
+#sensorlib = dy_import_module("sensorlib.r2py")
+dy_import_module_symbols('getsensor.r2py')
 dy_import_module_symbols('pedometer.r2py')
-
-
 
 
 HEIGHT = 175
@@ -29,9 +27,9 @@ def pedometer_thread(ped):
 
 
 start_sensing(SENSOR_SELECOTR, 0)
-log("1111111111\n")
+
 pre = PreCalibration(SENSOR_SELECOTR, 100)
-log("YOYOYO\n")
+
 ped = Pedometer(pre,HEIGHT)
 
 createthread(pedometer_thread(ped))

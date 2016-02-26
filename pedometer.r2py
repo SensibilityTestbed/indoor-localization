@@ -16,8 +16,7 @@
 dy_import_module_symbols('getsensor.r2py')
 dy_import_module_symbols('precalibration.r2py')
 dy_import_module_symbols('moving_average.r2py')
-dy_import_module_symbols('low_pass_filter.r2py')
-
+butterworth = dy_import_module('butterworth.r2py')
 
 
 
@@ -46,10 +45,13 @@ class Pedometer:
     # minimum moving average filter window = 4
     if moving_window_size < 4:
       moving_window_size = 4
+    if moving_window_size > 16:
+      moving_window_size = 16
     self.maf = MovingAverageFilter(moving_window_size, precalibration.time, 0.125)
 
     # Initialize low pass filter
-    self.lpf = LowPassFilter(precalibration.time, 0.25)
+    self.lpf = butterworth.ButterworthFilter("low", 4.0, self.samplerate, precalibration.time, 0.25)
+
 
     self.height = height
 
@@ -77,24 +79,24 @@ class Pedometer:
     # Non-gravity acceleration
     raw_mag = matrix_row_magnitude([raw_acc['xforce'], raw_acc['yforce'], raw_acc['zforce']]) - self.gravity_constant
 
-    # moving average filter
-    maf_mag = self.maf.moving_average_filter(raw_mag, time)
+
 
     # linear phase low pass filter
-    lpf_mag = self.lpf.low_pass_filter(raw_mag, time)
+    lpf_mag = self.lpf.filter(raw_mag, time)
+
+    # moving average filter
+    maf_mag = self.maf.moving_average_filter(lpf_mag, time)
 
     
     # step detection
-    peak = self._detect_peak(lpf_mag, time)
-    zero = self._detect_zero(lpf_mag, time)
+    peak = self._detect_peak(maf_mag, time)
+    zero = self._detect_zero(maf_mag, time)
     if method == 1:
       return peak
     else:
       return zero
 
 
-
- 
 
   def get_stepcount(self):
     return {"zero": self.zerocount, "peak": self.peakcount} 
