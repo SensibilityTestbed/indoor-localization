@@ -183,6 +183,7 @@ class Pedometer:
 
 
 
+
   # Distance estimation by height and steps frequency  
   def _distance_estimation(self, lasttime, currenttime):
     interval = currenttime - lasttime
