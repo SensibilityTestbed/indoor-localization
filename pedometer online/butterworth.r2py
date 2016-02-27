@@ -1,0 +1,109 @@
+"""
+<Program Name>
+  butterworth.r2py
+
+<Purpose>
+  This is a script for low/high pass filter to filter out 
+  the raw data with variable cut off frequency. 
+  Introducing an preset maximum sample interval to avoid device lag.
+"""
+
+
+pi = 3.14159265358979323846
+TERMS = 11
+
+
+
+
+def butter_factorial(x):
+  result = 1 
+  for num in range(x):
+    result *= (num + 1)
+  return result
+
+
+
+
+
+def butter_cos(x):
+  taylorsum = 0.0
+  for n in range(TERMS):
+    taylorsum += (-1)**n * (x**(2.0*n) / butter_factorial(2*n))
+  return max(min(taylorsum, 1), -1)
+
+
+
+
+def butter_sin(x):
+  return (1-butter_cos(x)**2)**0.5
+
+
+
+
+
+def butter_tan(x):
+  return butter_sin(x)/butter_cos(x)
+
+
+
+
+# y(k) = b0x(k) + b1x(k-1) + b2x(k-2) - a1y(k-1) - a2y(k-2)
+
+
+class ButterworthFilter:
+  def __init__(self, type, cutoff_frequency, sampling_frequency, current_time, threshold):
+    self.mag_list = []
+    self.output_list = []
+
+    omegaC = cutoff_frequency / sampling_frequency
+    c = 1.0 / butter_tan(pi * omegaC)
+    q = 2 ** 0.5
+
+    a0 = 1.0 + q * c + c * c
+    self.a1 = -2.0 * (c * c - 1.0) / a0
+    self.a2 = (1.0 - q * c + c * c) / a0
+ 
+    if type == "low":
+      self.b0 = 1.0 / a0
+      self.b1 = 2.0 / a0
+      self.b2 = self.b0
+    
+    elif type == "high":
+      self.b0 = c * c / a0
+      self.b1 = -2.0 * c * c / a0
+      self.b2 = self.b0
+
+
+    self.last_time = current_time
+    self.threshold = threshold
+
+
+  # lowpassfilter filter smooth the curve
+  def filter(self, data, current_time):
+    # avoid device lag
+    # different sampling time interval will reduce the filter's accuracy
+
+    if current_time - self.last_time > self.threshold:
+      self.mag_list = []
+      self.output_list = []
+
+    length = len(self.mag_list)
+
+    if length < 2:
+      self.mag_list.append(data)
+      self.output_list.append(data)
+      filtered_magNoG = data
+
+    # will change to queue later
+    elif length == 2:
+      filtered_magNoG = self.b0 * data + self.b1 * self.mag_list[1] + self.b2 * self.mag_list[0] - self.a1 * self.output_list[1] - self.a2 * self.output_list[0]
+      self.mag_list[0] = self.mag_list[1]
+      self.mag_list[1] = data
+      self.output_list[0] = self.output_list[1]
+      self.output_list[1] = filtered_magNoG
+
+    self.last_time = current_time
+    return filtered_magNoG
+
+
+# -*- mode: python;-*-

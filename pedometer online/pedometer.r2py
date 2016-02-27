@@ -24,7 +24,7 @@ butterworth = dy_import_module('butterworth.r2py')
 
 # constants for pre-calibratino stage
 PRE_LEARN_SAMPLE_NUMBER = 100
-ZERO_INTERVAL = 0.4                  # Minimum time difference between each step in senconds
+ZERO_INTERVAL = 0.25                  # Minimum time difference between each step in senconds
 PEAK_INTERVAL = 0.5
 
 
@@ -46,7 +46,7 @@ class Pedometer:
 
 
     # Initialize low pass filter
-    self.lpf = butterworth.ButterworthFilter("low", 3.0, self.samplerate, precalibration.time, 0.125)
+    self.lpf = butterworth.ButterworthFilter("low", 4.0, self.samplerate, precalibration.time, 0.125)
 
     self.hpf = butterworth.ButterworthFilter("high", 0.1, self.samplerate, precalibration.time, 0.125)
 
@@ -74,7 +74,6 @@ class Pedometer:
 
   def detect_step(self, raw_acc, time, method = 0): 
 
-
     # Non-gravity acceleration
     raw_mag = matrix_row_magnitude([raw_acc['xforce'], raw_acc['yforce'], raw_acc['zforce']]) - self.gravity_constant
 
@@ -82,12 +81,12 @@ class Pedometer:
 
     # linear phase low pass filter
     lpf_mag = self.lpf.filter(raw_mag, time)
-    hpf_mag = self.hpf.filter(lpf_mag, time)
+    #hpf_mag = self.hpf.filter(lpf_mag, time)
 
 
 
     # moving average filter
-    maf_mag = self.maf.hanning_filter(hpf_mag, time)
+    maf_mag = self.maf.hanning_filter(lpf_mag, time)
 
 
     
