@@ -54,8 +54,30 @@ class ButterworthFilter:
   def __init__(self, type, cutoff_frequency, sampling_frequency, current_time, threshold):
     self.mag_list = []
     self.output_list = []
+    self.cutoff_frequency = cutoff_frequency
+    self.type = type
+    self.a1 = 0.0
+    self.a2 = 0.0
+    self.b0 = 0.0
+    self.b1 = 0.0
+    self.b2 = 0.0
 
-    omegaC = cutoff_frequency / sampling_frequency
+
+    self._filter_coefficient(sampling_frequency)
+
+
+
+    self.last_time = current_time
+    self.threshold = threshold
+
+    self.timelist = []
+
+
+
+
+
+  def _filter_coefficient(self, sampling_frequency):
+    omegaC = self.cutoff_frequency / sampling_frequency
     c = 1.0 / butter_tan(pi * omegaC)
     q = 2 ** 0.5
 
@@ -63,39 +85,46 @@ class ButterworthFilter:
     self.a1 = -2.0 * (c * c - 1.0) / a0
     self.a2 = (1.0 - q * c + c * c) / a0
  
-    if type == "low":
+    if self.type == "low":
       self.b0 = 1.0 / a0
       self.b1 = 2.0 / a0
       self.b2 = self.b0
     
-    elif type == "high":
+    elif self.type == "high":
       self.b0 = c * c / a0
       self.b1 = -2.0 * c * c / a0
       self.b2 = self.b0
 
 
-    self.last_time = current_time
-    self.threshold = threshold
-
 
   # lowpassfilter filter smooth the curve
-  def filter(self, data, current_time):
+  def filter(self, data, current_time, dynamic = False):
     # avoid device lag
     # different sampling time interval will reduce the filter's accuracy
 
     if current_time - self.last_time > self.threshold:
       self.mag_list = []
       self.output_list = []
+      self.timelist = []
 
     length = len(self.mag_list)
 
     if length < 2:
       self.mag_list.append(data)
       self.output_list.append(data)
+      self.timelist.append(current_time)
       filtered_magNoG = data
+
+
 
     # will change to queue later
     elif length == 2:
+      if dynamic:
+        sampling_rate = 2/(current_time - self.timelist[0])
+        self._filter_coefficient(sampling_rate)
+        self.timelist[0] = self.timelist[1]
+        self.timelist[1] = current_time 
+
       filtered_magNoG = self.b0 * data + self.b1 * self.mag_list[1] + self.b2 * self.mag_list[0] - self.a1 * self.output_list[1] - self.a2 * self.output_list[0]
       self.mag_list[0] = self.mag_list[1]
       self.mag_list[1] = data

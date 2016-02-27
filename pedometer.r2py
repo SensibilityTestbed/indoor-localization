@@ -81,7 +81,7 @@ class Pedometer:
 
 
     # linear phase low pass filter
-    lpf_mag = self.lpf.filter(raw_mag, time)
+    lpf_mag = self.lpf.filter(raw_mag, time, True)
     hpf_mag = self.hpf.filter(lpf_mag, time)
 
 
