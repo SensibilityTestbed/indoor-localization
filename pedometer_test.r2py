@@ -66,4 +66,5 @@ for entry in data:
 
 end = getruntime() - start
 log("\n Total runtime: ", end) 
+log(ped.get_distance(), '\n')
 
