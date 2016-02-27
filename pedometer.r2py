@@ -82,7 +82,7 @@ class Pedometer:
 
     # linear phase low pass filter
     lpf_mag = self.lpf.filter(raw_mag, time, True)
-    hpf_mag = self.hpf.filter(lpf_mag, time)
+    hpf_mag = self.hpf.filter(lpf_mag, time, True)
 
 
 
@@ -206,6 +206,7 @@ class Pedometer:
     step_length = speed_per_second * interval
 
     if interval > 1.0 or step_length > 300.0:
+      log("interval", interval, "step_length", step_length)
       step_length = self.height * 0.415
 
     return step_length/100
