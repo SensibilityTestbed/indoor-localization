@@ -58,6 +58,12 @@ def matrix_add(m1, m2):
   return [[m1[row][col] + m2[row][col] for col in range(len(m1[0]))] for row in range(len(m1))]  
 
 
+def matrix_minus(m1, m2):
+  if len(m1) != len(m2) or len(m1[0]) != len(m2[0]):
+    raise MatrixDimensionsError("Matrix dimensions are invalid for addition.")
+  return [[m1[row][col] - m2[row][col] for col in range(len(m1[0]))] for row in range(len(m1))]  
+
+
 # Multiplies a copy of the matrix by a scalar
 def matrix_scale(matrix, scalar):
   return [[scalar * val for val in row] for row in matrix]
