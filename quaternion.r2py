@@ -62,7 +62,7 @@ def quaternion_differentiator(pitch, roll, yaw):
 # Computes the rotation matrix
 # of a given quaternion
 def quaternion_to_matrix(q):
-  norm = quaternion_norm(q)
+  norm = matrix_row_magnitude(q)
   matrix = matrix_init(3, 3)
   matrix[0][0] = q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]
   matrix[0][1] = 2 * (q[0] * q[1] + q[2] * q[3])
