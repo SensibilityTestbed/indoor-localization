@@ -37,7 +37,7 @@ class ExtendedKalmanFilter:
   # i.e. the state predicted by the system model.
   def _compute_a_priori_state(self, transition_matrix):
     self._state = matrix_multiply(transition_matrix, self._state)
-
+    #log("priori state =\n", self._state, '\n\n')
 
   def _compute_process_covariance(self):
     pass
@@ -50,6 +50,7 @@ class ExtendedKalmanFilter:
     #log("error:", len(error), "process:", len(process), "error:", error, '\n')
     #self._error = matrix_add(error, self._compute_process_covariance())
     self._error = matrix_add(error, process) 
+    #log("priori error =\n", self._error, '\n\n')
     
 
 
@@ -63,7 +64,9 @@ class ExtendedKalmanFilter:
   def _compute_gain(self, jacobian_matrix):
     jacobian_transpose = matrix_transpose(jacobian_matrix)
     left = matrix_multiply(self._error, jacobian_transpose)  
-    right = matrix_add(matrix_multiply(matrix_multiply(jacobian_matrix, self._error), jacobian_transpose), self._compute_measurement_covariance)
+    measurement_covar = self._compute_measurement_covariance()
+    #log('R =\n', measurement_covar, '\n\n')
+    right = matrix_add(matrix_multiply(matrix_multiply(jacobian_matrix, self._error), jacobian_transpose), measurement_covar) 
     return matrix_multiply(left, matrix_inverse(right))
 
 
@@ -81,12 +84,15 @@ class ExtendedKalmanFilter:
   # Computes the a posteriori state estimate,
   # i.e. the measurement correct state.
   def _compute_a_posteriori_state(self, gain, measurements):
+    #nlog('gain =\n', gain, '\n\n') 
     self._state = matrix_add(self._state, matrix_multiply(gain, matrix_minus(measurements, self._compute_expected_measurements())))
+    #log('post state =\n', self._state, '\n\n')
 
 
   # Computes the error covariance in the corrected state.
-  def _compute_a_posteriori_error(self, jacobian, gain):
+  def _compute_a_posteriori_error(self, gain, jacobian):
     self._error = matrix_minus(self._error, matrix_multiply(matrix_multiply(gain, jacobian), self._error))
+    #log('post error =\n', self._error, '\n\n')
 
   
   # Computes the matrix describing how the state transitions
@@ -118,7 +124,7 @@ class ExtendedKalmanFilter:
   # *** Note ***
   # This is the only method that should be directly called by child classes.
   def _update(self, input_vector, measurements, time):
-    self._timestep = time - self._time
+    self._timestep = (time - self._time) * (10.0 ** -9)
 
     # Sanity check: did we miss a measurement?
     if self._timestep < 0:
@@ -129,6 +135,7 @@ class ExtendedKalmanFilter:
 
     self._time = time
 
+    #log('timestep', self._timestep, '\n\n')
     # Project ahead?
     transition_matrix = self._compute_transition_matrix(input_vector)
     self._compute_a_priori_state(transition_matrix)
@@ -136,7 +143,7 @@ class ExtendedKalmanFilter:
 
     # Correct the prediction
     jacobian = self._compute_jacobian_matrix()
-    log("jacobian:", jacobian, '\n') 
+    #log("jacobian:", jacobian, '\n') 
     gain = self._compute_gain(jacobian)
     self._compute_a_posteriori_state(gain, measurements)
     self._compute_a_posteriori_error(gain, jacobian)
