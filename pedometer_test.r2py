@@ -1,3 +1,5 @@
+# This is a temp test script
+
 datakeys = ['time', 'xforce', 'yforce', 'zforce', 'pitch', 'roll', 'yaw', 'xmag', 'ymag', 'zmag']
 
 def import_csv(filename):
@@ -51,7 +53,7 @@ pre.time = caldata[-1]['time'] * 10 ** -9
 
 ped = Pedometer(pre, 175)
 
-data = import_csv("samsung_100hz_hand1-2.csv")
+data = import_csv("samsung_100hz_hand2.csv")
 
 
 v = [0.0, 0.0, 1.0, 0.0]
