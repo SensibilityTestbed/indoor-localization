@@ -9,20 +9,16 @@
 """
 
 
+# temporarly added trigonomery functions in this script
+# Will delete these functions after fix trig.r2py
 pi = 3.14159265358979323846
 TERMS = 11
-
-
-
 
 def butter_factorial(x):
   result = 1 
   for num in range(x):
     result *= (num + 1)
   return result
-
-
-
 
 
 def butter_cos(x):
@@ -32,13 +28,8 @@ def butter_cos(x):
   return max(min(taylorsum, 1), -1)
 
 
-
-
 def butter_sin(x):
   return (1-butter_cos(x)**2)**0.5
-
-
-
 
 
 def butter_tan(x):
@@ -75,7 +66,8 @@ class ButterworthFilter:
 
 
 
-
+  # get filter coefficient 
+  # by cutoff frequency and sampling frequency
   def _filter_coefficient(self, sampling_frequency):
     omegaC = self.cutoff_frequency / sampling_frequency
     c = 1.0 / butter_tan(pi * omegaC)
@@ -97,7 +89,9 @@ class ButterworthFilter:
 
 
 
-  # lowpassfilter filter smooth the curve
+  # lowpass/high pass filter
+  # Default dynamic is False
+  # if dynamic == True, get each sample's sampling rate
   def filter(self, data, current_time, dynamic = False):
     # avoid device lag
     # different sampling time interval will reduce the filter's accuracy
