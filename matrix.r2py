@@ -34,7 +34,7 @@ def matrix_transpose(matrix):
 # Returns the norm (aka magnitude) 
 # of a column vector
 def matrix_column_magnitude(matrix):
-  return sum([val * val for val in matrix_transpose(matrix)[0]])
+  return sum([val * val for val in matrix_transpose(matrix)[0]]) ** 0.5
 
 
 def matrix_row_magnitude(row):
