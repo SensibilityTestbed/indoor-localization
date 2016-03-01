@@ -50,30 +50,30 @@ def quaternion_skew_symmetric(x, y, z):
 
 # Builds a matrix that takes the derivative of a 
 # quaternion when multiplied
-def quaternion_differentiator(pitch, roll, yaw):
-  omega = quaternion_skew_symmetric(pitch, roll, yaw)
-  omega[0].append(roll)
-  omega[1].append(pitch)
-  omega[2].append(yaw)
-  omega.append([-roll, -pitch, -yaw, 0])
-  return omega
+def quaternion_differentiator(x, y, z):
+  omega = quaternion_skew_symmetric(x, y, z)
+  omega[0].append(x)
+  omega[1].append(y)
+  omega[2].append(z)
+  omega.append([-x, -y, -z, 0])
+  return matrix_scale(omega, 0.5)
 
 
 # Computes the rotation matrix
 # of a given quaternion
 def quaternion_to_matrix(q):
-  norm = matrix_row_magnitude(q)
+  magnitude = matrix_row_magnitude(q)
   matrix = matrix_init(3, 3)
   matrix[0][0] = q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]
   matrix[0][1] = 2 * (q[0] * q[1] + q[2] * q[3])
   matrix[0][2] = 2 * (q[0] * q[2] - q[1] * q[3])
   matrix[1][0] = 2 * (q[0] * q[1] - q[2] * q[3])
-  matrix[1][1] = -q[0] * q[0] + q[1] * q[1] - q[2] * q[2] + q[3]* q[3]
+  matrix[1][1] = -q[0] * q[0] + q[1] * q[1] - q[2] * q[2] + q[3] * q[3]
   matrix[1][2] = 2 * (q[1] * q[2] + q[0] * q[3])
   matrix[2][0] = 2 * (q[0] * q[2] + q[1] * q[3])
   matrix[2][1] = 2 * (q[1] * q[2] - q[0] * q[3])
-  matrix[2][2] = -q[0] * q[0] - q[1] * q[1] + q[2] * q[2] + q[3]* q[3]
-  return matrix_scale(matrix, 1.0 / norm)
+  matrix[2][2] = -q[0] * q[0] - q[1] * q[1] + q[2] * q[2] + q[3] * q[3]
+  return matrix_scale(matrix, 1.0 / magnitude)
 
 
 
