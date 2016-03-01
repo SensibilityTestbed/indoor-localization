@@ -57,6 +57,7 @@ class OrientationFilter(ExtendedKalmanFilter):
 
     self._acc = [0.0] * 3
     self._magnet = [0.0] * 3
+    self._magnetic_field = [0.0] * 3
     self._gyro_stats = precalibration.gyro_stats 
     self._acc_stats = precalibration.acc_stats
     self._magnet_stats = precalibration.magnet_stats
@@ -174,30 +175,30 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Factored partial derivative of 
     # the acceleration with respect to 
     # each component of the state quaternion
-    acc = [[q[2], -q[3], q[0], -q[1]], \
-           [q[3], q[2], q[1], q[0]], \
-           [-q[0], -q[1], q[2], q[3]]]
+    acc_partials = [[q[2], -q[3], q[0], -q[1]],
+                    [q[3], q[2], q[1], q[0]], 
+                    [-q[0], -q[1], q[2], q[3]]]
     # Unfactor before inserting into Jacobian
-    acc = matrix_scale(acc, 2 * GRAVITY / q_norm)
+    acc_partials = matrix_scale(acc_partials, 2 * GRAVITY / q_norm)
     
     # Factored partial derivative of the magnetometer 
     # readings with respect to the state quaternion. 
-    magnet = [[[q[0], q[2]], [-q[1], -q[3]], [-q[2], q[0]], [q[3], -q[1]]], \
-              [[q[1], q[3]], [q[0], q[2]], [-q[3], q[1]], [-q[2], q[0]]], \
-              [[q[2], -q[0]], [q[3], -q[1]], [q[0], q[2]], [q[1], q[3]]]]
+    magnet_partials = [[[q[0], q[1], q[2]], [-q[1], q[0], -q[3]], [-q[2], q[3], q[0]], [q[3], q[2], -q[1]]], 
+                       [[q[1], -q[0], q[3]], [q[0], q[1], q[2]], [-q[3], -q[2], q[1]], [-q[2], q[3], q[0]]], 
+                       [[q[2], -q[3], -q[0]], [q[3], q[2], -q[1]], [q[0], q[1], q[2]], [q[1], -q[0], q[3]]]]
     # Each vector in magnet needs to be mutliplied by the scaled magnetic 
     # field vector before being inserted into the Jacobian. 
-    scaled_field = matrix_scale([[self._magnet[0], self._magnet[2]]], 2 / q_norm)
+    scaled_field = matrix_scale([self._magnetic_field], 2.0 / q_norm)
     
     for row in range(3):
       # Fill top three Jacobian rows with
       # accelerometer and identity partials
-      jacobian[row] = acc[row] + identity[row]
+      jacobian[row] = acc_partials[row] + identity[row]
       magnet_row = row + 3
       # Fill first four columns of bottom three 
       # Jacobian rows with magnetometer partials
       for col in range(4):
-        jacobian[magnet_row][col] = matrix_dot_product([magnet[row][col]], scaled_field)
+        jacobian[magnet_row][col] = matrix_dot_product([magnet_partials[row][col]], scaled_field)
       # Insert identity partials in remaining
       # columns of bottom three rows
       jacobian[magnet_row] = jacobian[magnet_row][:4] + identity[magnet_row] 
@@ -243,16 +244,16 @@ class OrientationFilter(ExtendedKalmanFilter):
     
     magnet_norm = matrix_row_magnitude(self._magnet)
 
-    # Rotate measurements from phone to navigational frame
+    # Rotate gravity and magnetic field from phone to navigational frame
     rotation = quaternion_to_matrix(self._get_quaternion())
-    acc_rotated = matrix_multiply(rotation, matrix_transpose([self._acc]))
+    gravity_rotated = matrix_multiply(rotation, GRAVITY_VECTOR)
     magnet_rotated = matrix_multiply(rotation, matrix_transpose([self._magnet]))
 
     #log('acc_rotated =', acc_rotated, 'magnet_rotated =', magnet_rotated, '\n\n')
 
     """
     # Calculate the magnetic inclination for validation
-    dip = acos(matrix_dot_product(magnet_rotated, acc_rotated) / (magnet_norm * acc_norm))
+    dip = acos(matrix_dot_product(magnet_rotated, gravity_rotated) / (magnet_norm * acc_norm))
 
     log('dip =', dip * 180 / pi, '\n\n')
 
