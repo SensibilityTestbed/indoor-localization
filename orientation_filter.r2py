@@ -81,6 +81,10 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Integrate angular velocity in discrete time
     transition_matrix = matrix_exponential_skew_symmetric(matrix_scale(transition_matrix, self._timestep))  
 
+    # SL4A version
+    #transition_matrix = matrix_exponential_skew_symmetric(transition_matrix)  
+    
+
     # Right now the transition matrix only accounts
     # for the quaternion (orientation), so it is 4x4.
     # However, the accelerometer and magnetometer biases
@@ -106,7 +110,26 @@ class OrientationFilter(ExtendedKalmanFilter):
 
     #log("transition =\n", transition_matrix, '\n\n')
     return transition_matrix
-    
+
+  
+  def _normalize(self):
+    self._state[:4] = matrix_scale(self._state[:4], 1.0 / matrix_column_magnitude(self._state[:4]))
+
+
+  def _compute_a_priori_state(self, transition_matrix):
+    ExtendedKalmanFilter._compute_a_priori_state(self, transition_matrix)
+    #self._normalize() 
+
+
+  def _compute_a_priori_error(self, transition_matrix):
+    ExtendedKalmanFilter._compute_a_priori_error(self, transition_matrix)
+    self._error = matrix_scale(self._error, 1)
+
+
+  def _compute_a_posteriori_state(self, gain, measurements):
+    ExtendedKalmanFilter._compute_a_posteriori_state(self, gain, measurements)
+    #self._normalize() 
+
 
   def _compute_process_covariance(self):
     q_cross = quaternion_skew_symmetric(self._state[0][0], self._state[1][0], self._state[2][0])
@@ -294,8 +317,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     # run Kalman filter
     self._update(gyro_vector, measurements, sensor_data['time'])
     
-    self._state[:4] = matrix_scale(self._state[:4], 1.0 / matrix_column_magnitude(self._state[:4]))
-  
+    self._normalize()  
     return self._get_quaternion()
 
 # -*- mode: python;-*-
