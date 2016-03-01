@@ -319,6 +319,6 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._update(gyro_vector, measurements, sensor_data['time'])
     
     self._normalize()  
-    return self._get_quaternion()
+    return quaternion_inverse(self._get_quaternion())
 
 # -*- mode: python;-*-
