@@ -34,7 +34,7 @@ def quaternion_multiply(q1, q2):
 
 
 def quaternion_inverse(q):
-  magnitude_inverse = 1.0 / matrix_row_magnitude(q)
+  magnitude_inverse = 1.0 / (matrix_row_magnitude(q) ** 2)
   return matrix_scale(matrix_scale([q[:3]], -1), magnitude_inverse)[0] + [q[3] * magnitude_inverse]
 
 
