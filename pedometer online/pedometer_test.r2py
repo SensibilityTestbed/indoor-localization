@@ -1,6 +1,6 @@
 #sensorlib = dy_import_module("sensorlib.r2py")
 dy_import_module_symbols('getsensor.r2py')
-dy_import_module_symbols('pedometer.r2py')
+dy_import_module_symbols('ped_online.r2py')
 
 
 HEIGHT = 175

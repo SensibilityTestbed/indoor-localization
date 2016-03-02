@@ -22,7 +22,7 @@ dy_import_module_symbols('stat_stream.r2py')
 dy_import_module_symbols('precalibration.r2py')
 dy_import_module_symbols('pedometer.r2py')
 
-caldata = import_csv("samsung_100hz_calibration.csv")
+caldata = import_csv("sony_50hz_calibration.csv")
 
 acc_stream = StatStream()
 gyro_stream = StatStream()
@@ -51,9 +51,11 @@ pre.time = caldata[-1]['time'] * 10 ** -9
 
 
 
-ped = Pedometer(pre, 175)
 
-data = import_csv("samsung_100hz_hand2.csv")
+
+data = import_csv("sony_50hz_trousers1.csv")
+
+ped = Pedometer(pre, 175)
 
 
 v = [0.0, 0.0, 1.0, 0.0]
