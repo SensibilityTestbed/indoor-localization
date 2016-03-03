@@ -7,20 +7,17 @@
 """
 
 dy_import_module_symbols("matrix.r2py")
-
+dy_import_module_symbols("trig.r2py")
 
 GRAVITY = [0.0, 0.0, 1.0]
 
-# Initializes a quaternion describing the tilt
-# of the device with respect to the plane parallel
-# to the Earth's surface 
-def quaternion_tilt(acc):
-  q = [0.0] * 4
-  q[0] = math_acos(acc[2])
-  q[1] = acc[1]*GRAVITY[2] - acc[2]*GRAVITY[1]
-  q[2] = acc[2]*GRAVITY[0] - acc[0]*GRAVITY[2]
-  q[3] = acc[0]*GRAVITY[1] - acc[1]*GRAVITY[0] 
-  return q
+# Initializes a quaternion describing the rotation
+# of the gravity vector from world to phone coordinates
+def quaternion_from_gravity(acc):
+  unit_acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
+  q = matrix_vector_cross_product(GRAVITY, unit_acc)
+  q = matrix_scale(q, ((1 - unit_acc[2]) / 2.0) / ((1 - unit_acc[2] ** 2) ** 0.5))
+  return matrix_transpose(q)[0] + [(1 + unit_acc[2]) / 2.0]
   
 
 # Multiplies two quaternions and returns the result
@@ -36,10 +33,12 @@ def quaternion_multiply(q1, q2):
 def quaternion_inverse(q):
   magnitude_inverse = 1.0 / (matrix_row_magnitude(q) ** 2)
   return matrix_scale([q[:3]], -magnitude_inverse)[0] + [q[3] * magnitude_inverse]
+  
 
 
 def quaternion_rotate(q, v):
-  return quaternion_multiply(quaternion_multiply(q, v), quaternion_inverse(q))
+  rotation = quaternion_multiply(quaternion_multiply(q, v), quaternion_inverse(q))
+  return matrix_scale([rotation], 1.0 / matrix_row_magnitude(rotation))[0]
 
 
 # Builds a skew symmetric 
