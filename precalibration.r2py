@@ -25,7 +25,8 @@ class PreCalibration:
     self.magnet_stats = StatStream()
     self.acc_stats = StatStream()
     self.sensor = SENSOR_SELECOTR
-
+    self.gravity_vector = [] 
+    self.magnetic_field = []
     #self.calibrate()
         
   """
