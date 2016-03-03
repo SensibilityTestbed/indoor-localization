@@ -192,7 +192,7 @@ class OrientationFilter(ExtendedKalmanFilter):
                        [[q[2], -q[3], -q[0]], [q[3], q[2], -q[1]], [q[0], q[1], q[2]], [q[1], -q[0], q[3]]]]
     # Each vector in magnet needs to be mutliplied by the scaled magnetic 
     # field vector before being inserted into the Jacobian. 
-    scaled_field = matrix_scale(self._magnetic_field, 2.0 / q_norm)
+    scaled_field = matrix_scale(matrix_transpose(self._magnetic_field), 2.0 / q_norm)
     
     for row in range(3):
       # Fill top three Jacobian rows with
@@ -323,7 +323,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._update(gyro_vector, measurements, sensor_data['time'])
 
     self._normalize()  
-    self._magnetic_field = self._magnet
+    self._magnetic_field = matrix_transpose([self._magnet])
 
     return quaternion_inverse(self._get_quaternion())
 
