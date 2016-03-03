@@ -9,14 +9,14 @@
 
 # USAGE:
 #
-# >>> gm = geomag.GeoMag("wmm.cof")
+# >>> gm = geomag.GeoMag("WMM.COF")
 # >>> mag = gm.GeoMag(80,0)
 # >>> mag.dec
 # -6.1335150785195536
 # >>>
 
 dy_import_module_symbols('math.r2py')
-dy_import_module_symbols('trig_taylor.r2py')
+dy_import_module_symbols('trig.r2py')
 #dy_import_module_symbols('time.r2py')
 
 class GeoMag:
@@ -314,3 +314,6 @@ class GeoMag:
 gm = GeoMag("wmm.cof")
 mag = gm.GeoMag(80,0)
 log("dec: ", mag.dec, "ti:", mag.ti, '\n')
+
+
+# -*- mode: python;-*-
