@@ -12,10 +12,8 @@ class StatStream():
 
   def update(self, x):
     self.length += 1
+    self.mean = ((self.length - 1) * self.mean + x) / self.length
     if self.length > 1:
-      mean_diff = x - self.mean
-      self.mean = self.mean + mean_diff / self.length
-      self.varsum = self.varsum + mean_diff * (x - self.mean)
-      self.variance = self.varsum / (self.length - 1)  
+      self.variance = ((x - self.mean) ** 2) / (self.length - 1) + (self.length - 1) * self.variance / self.length 
 
 # -*- mode: python;-*-
