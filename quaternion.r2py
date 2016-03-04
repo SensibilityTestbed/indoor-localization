@@ -12,10 +12,10 @@ dy_import_module_symbols("trig.r2py")
 GRAVITY = [0.0, 0.0, 1.0]
 
 # Initializes a quaternion describing the rotation
-# of the gravity vector from world to phone coordinates
+# of the gravity vector from phone to world coordinates
 def quaternion_from_gravity(acc):
   unit_acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
-  q = matrix_vector_cross_product(GRAVITY, unit_acc)
+  q = matrix_vector_cross_product(unit_acc, GRAVITY)
   q = matrix_scale(q, ((1 - unit_acc[2]) / 2.0) / ((1 - unit_acc[2] ** 2) ** 0.5))
   return matrix_transpose(q)[0] + [(1 + unit_acc[2]) / 2.0]
   
