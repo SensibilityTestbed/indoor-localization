@@ -2,9 +2,29 @@ clear all;
 close all;
 
 %% File loading and data processing
+HEIGHT = 1.75;
+
 filename = 'sony_50hz_trousers2.csv';
-Fs = 50 % sampling frequency
-HEIGHT = 1.75
+stringfund = strfind(filename, 'samsung');
+
+if stringfund > 0
+    Fs = 100;
+else
+    Fs = 50;
+end
+
+stringfund = strfind(filename, 'hand');
+if stringfund > 0 
+    gyroFlag = 0;
+else
+    stringfund = strfind(filename, 'coat');
+    if stringfund > 0
+        gyroFlag = 1;
+    else
+        gyroFlag = 2;
+    end
+end
+
 
 data = csvread(filename,1,0)
 time = data(:,1) * 10^-9
@@ -62,8 +82,13 @@ gyroX = mod(intergralFilteredGx, 2*pi) * 180/pi
 gyroY = mod(intergralFilteredGy, 2*pi) * 180/pi
 gyroZ = mod(intergralFilteredGz, 2*pi) * 180/pi
 
-thetaGyro = mod(magGyro, 2*pi)
-
+if gyroFlag == 0
+    thetaGyro = mod(intergralFilteredGz, 2*pi)
+elseif gyroFlag == 1
+    thetaGyro = mod(magGyro, 2*pi)
+else
+    thetaGyro = mod(intergralFilteredGy, 2*pi)
+end
 
 
 
@@ -282,10 +307,8 @@ plot(positionX1, positionY1, 'r', 'Marker', 'v', 'LineStyle', 'none');
 title('Indoor path tracking')
 xlabel('meter')
 ylabel('meter')
-legend('from zero crossing', 'from peak search')
+legend('zero path tracking', 'zero steps', 'peak path tracking', 'peak steps')
 
 hold off
 saveas(gcf,'figure6.png')
-
-
 
