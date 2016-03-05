@@ -33,7 +33,7 @@ ROOT3 = 3 ** 0.5
 class OrientationFilter(ExtendedKalmanFilter):
   def __init__(self, precalibration): 
     q = quaternion_from_gravity(precalibration.gravity_vector)
-    self._gravity_bias = precalibration.acc_stats.mean - GRAVITY
+    self._gravity_bias = abs(precalibration.acc_stats.mean - GRAVITY)
     acc_bias = self._gravity_bias / ROOT3 
     #magnet_bias = (precalibration.magnet_stats.mean - precalibration.magnetic_intensity) / ROOT3
     magnet_bias = 8.332
@@ -47,7 +47,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     # of the accelerometer, i.e. the accelerometer variance.
     #
     # Likewise, the error in the accelerometer bias is also its variance.
-    error[:4] = matrix_scale(error[:7], precalibration.acc_stats.variance)
+    error[:7] = matrix_scale(error[:7], precalibration.acc_stats.variance)
     # The error in the magnetometer bias is its variance.
     error[7:] = matrix_scale(error[7:], precalibration.magnet_stats.variance) 
     log("P0 =\n", error, "\n\n")
@@ -66,9 +66,11 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._magnet_variance = precalibration.magnet_stats.variance
     self._magnet_mean = matrix_column_magnitude(self._magnetic_field)
     
-    self._window_length = int(NYQUIST_STEP_FREQ * precalibration.get_sample_rate())
+    #self._window_length = int(NYQUIST_STEP_FREQ * precalibration.get_sample_rate())
+    self._window_length = int(NYQUIST_STEP_FREQ * 100)
     self._window = [0.0] * self._window_length
-    self._window[0] = self._magnet_variance  
+    self._window[0] = matrix_column_magnitude(precalibration.magnetic_field) 
+    self._window_sum = self._window[0]
     self._window_size = 1
      
 
@@ -134,9 +136,11 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Update the magnetometer variance
     # using new window estimate.
     magnet_bias = (self._magnet_mean - self._magnetic_intensity) / ROOT3 
-    self._state[7][7] = magnet_bias
-    self._state[8][8] = magnet_bias
-    self._state[9][9] = -magnet_bias
+    self._state[7][0] = magnet_bias
+    self._state[8][0] = magnet_bias
+    self._state[9][0] = -magnet_bias
+
+    log("prediction =\n", self._state, '\n\n')
 
 
 
@@ -151,7 +155,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     gamma = [[-q[0], -q[1], -q[2]],
              [ q[3], -q[2],  q[1]],
              [ q[2],  q[3], -q[0]],
-             [-q[1],  q[0],  q[3]]
+             [-q[1],  q[0],  q[3]]]
     Q = matrix_multiply(gamma, matrix_scale(matrix_identity(3), self._gyro_variance))
     Q = matrix_scale(matrix_multiply(Q, matrix_transpose(gamma)), 0.25)
 
@@ -284,7 +288,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._magnet_mean = self._window_sum / self._window_size
 
     var_sum = 0.0
-    for i in range(1, len(self._window)):
+    for i in range(self._window_size - 1, 0, -1):
       # Actually slide the window now...
       self._window[i] = self._window[i-1]
       # Add up sum of squares for variance
@@ -292,7 +296,6 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._window[0] = magnitude 
 
     self._magnet_variance = var_sum / self._window_size
-    
  
 
 
