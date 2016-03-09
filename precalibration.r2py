@@ -32,7 +32,6 @@ class PreCalibration:
   """
   # pre-calibration stage, initialize coefficient of filters and threshold of noise level 
   def calibrate(self):
-    log("Welcome to pedometer!\nSystem pre calibration, please wait a while\n")
 
     while get_sensors() is None:
       sleep(0.1)
@@ -50,7 +49,6 @@ class PreCalibration:
       except Exception as e:
         sleep(0.1)
         continue
-      log(raw_data, '\n')
       mag = matrix_row_magnitude([raw_data['xforce'], raw_data['yforce'], raw_data['zforce']])
       self.mag_list.append(mag)
 
@@ -70,7 +68,7 @@ class PreCalibration:
     for i in range(0, length):
       sum_mag += self.mag_list[i]
     self.average = sum_mag/length
-    log("\nGravity constant:", self.average, '\n')
+    log("Gravity constant:", self.average, '\n')
     return self.average
 
 
@@ -81,7 +79,7 @@ class PreCalibration:
   # and minimum path interval
   def get_sample_rate(self):
     sample_rate = len(self.mag_list)/(self.time - self.start_time)
-    log("\nSamplingrate:", sample_rate, '\n')
+    log("Samplingrate:", sample_rate, '\n')
     return sample_rate 
 
 
@@ -105,7 +103,7 @@ class PreCalibration:
       threshold = (max_noise) * 2
     else:
       threshold = std_mag * 16
-    log("\nThreshold:", threshold, '\n')
+    log("Threshold:", threshold, '\n')
     return threshold
 
 

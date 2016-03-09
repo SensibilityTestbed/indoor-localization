@@ -68,8 +68,8 @@ class Pedometer:
     self.time_zero = []
     self.distance_peak = []
     self.time_peak = []
-    
 
+    log("\nThank you for your patiences. Please walk around.\n\nStep detections:\n")
     
 
   def detect_step(self, raw_acc, time, method = 0): 
@@ -120,7 +120,7 @@ class Pedometer:
     # Average stride works as reference
     average_zero_distance = self.zerocount * 0.415 * self.height/100
     average_peak_distance = self.peakcount * 0.415 * self.height/100
-    return {"distance_estimation_zero": sum_zero, "distance_estimation_peak": sum_peak, "average_zero_distance": average_zero_distance, "average_peak_distance": average_peak_distance}
+    return {'sum_zero': sum_zero, "sum_peak": sum_peak, "average_zero_distance": average_zero_distance, "average_peak_distance": average_peak_distance}
 
 
 
@@ -133,7 +133,7 @@ class Pedometer:
       self.distance_zero.append(self._distance_estimation(self.steptime, time))
       self.time_zero.append(time)
       self.steptime = time
-      log("zero count:", self.zerocount, '\n')
+      log("By zero crossing algorithm: time:", time, "Current steps count:", self.zerocount, '\n')
       stepped = True
     self.lastmag = data
 
@@ -166,7 +166,7 @@ class Pedometer:
 
         self.distance_peak.append(self._distance_estimation(self.last_peak_time, self.max_time))
         self.time_peak.append(time)
-        log("peak count: ", self.peakcount, '\n')
+        log("By peak search algorithm: time:", time, "Current steps count:", self.peakcount, '\n')
         self.peak_window_start = time
         self.last_peak_time = self.max_time
         self.max_mag = self.threshold
@@ -204,7 +204,6 @@ class Pedometer:
     step_length = speed_per_second * interval
 
     if interval > 1.0 or step_length > 300.0:
-      log("interval", interval, "step_length", step_length)
       step_length = self.height * 0.415
 
     return step_length/100

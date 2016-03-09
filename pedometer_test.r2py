@@ -1,5 +1,11 @@
 # This is a temp test script
 
+log("\n\n###################################\n")
+log(" Welcome to the offline pedometer!\n\n")
+log("Pre-calibration start, please wait...\n\n")
+
+
+
 datakeys = ['time', 'xforce', 'yforce', 'zforce', 'pitch', 'roll', 'yaw', 'xmag', 'ymag', 'zmag']
 
 def import_csv(filename):
@@ -50,11 +56,8 @@ pre.start_time = caldata[0]['time'] * 10 ** -9
 pre.time = caldata[-1]['time'] * 10 ** -9
 
 
-
-
-
 data = import_csv("sony_50hz_trousers1.csv")
-
+log("Pre-calibration down! The pre-learned coefficients shows as below:\n")
 ped = Pedometer(pre, 175)
 
 
@@ -66,9 +69,13 @@ for entry in data:
   #log("v = ", quaternion_rotate(q, v), '\n')
       
   if ped.detect_step(entry, entry['time'] * 10 ** -9, 1):
-    log("Stepped\n")
-
+    pass
+distance = ped.get_distance()
 end = getruntime() - start
-log("\n Total runtime: ", end) 
-log(ped.get_distance(), '\n')
+log("\nTotal runtime: ", end, '\n')
 
+log("\nThe distance will be estimated from two different detection algorithms and two estimation algorithms.\n")
+log("\nCrossing zero algorithm:\n  Distance estimation from average stride: ", distance['average_zero_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_zero'],"meters\n")
+log("\nPeak search algorithm:\n  Distance estimation from average stride: ", distance['average_peak_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_peak'],"meters\n") 
+log("\n\n     Thank you for your using!\n")
+log("###################################\n")
