@@ -93,8 +93,8 @@ class PreCalibration:
     max_noise = self.mag_list[0]
     length = len(self.mag_list)
     for i in range(1, length):
-      if max_noise < self.mag_list[i]:
-        max_noise = self.mag_list[i]
+      if max_noise < abs(self.mag_list[i]):
+        max_noise = abs(self.mag_list[i])
         sum_variance = sum_variance + (self.mag_list[i]-self.average)**2
     max_noise = max_noise - self.average
     variance_mag = sum_variance/length

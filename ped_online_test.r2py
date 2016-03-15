@@ -28,6 +28,15 @@ def pedometer_thread(ped):
     stop_sensing()
     distance = ped.get_distance()
 
+    if ped.carrying_flag == 0:
+      log("Carrying method: Unknown\n")
+    elif ped.carrying_flag == 1:
+      log("Carrying method: hold in hand\n")
+    elif ped.carrying_flag == 2:
+      log("Carrying method: put in trousers pocket\n")
+    elif ped.carrying_flag == 3:
+      log("Carrying method: put in coat pocket\n")
+      
     log("\nThe distance will be estimated from two different detection algorithms and two estimation algorithms.\n")
     log("\nCrossing zero algorithm:\n  Distance estimation from average stride: ", distance['average_zero_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_zero'],"meters\n")
     log("\nPeak search algorithm:\n  Distance estimation from average stride: ", distance['average_peak_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_peak'],"meters\n") 

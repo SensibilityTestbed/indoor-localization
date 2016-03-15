@@ -28,7 +28,7 @@ dy_import_module_symbols('stat_stream.r2py')
 dy_import_module_symbols('precalibration.r2py')
 dy_import_module_symbols('pedometer.r2py')
 
-caldata = import_csv("sony_50hz_calibration.csv")
+caldata = import_csv("samsung_100hz_calibration.csv")
 
 acc_stream = StatStream()
 gyro_stream = StatStream()
@@ -56,7 +56,7 @@ pre.start_time = caldata[0]['time'] * 10 ** -9
 pre.time = caldata[-1]['time'] * 10 ** -9
 
 
-data = import_csv("sony_50hz_trousers1.csv")
+data = import_csv("samsung_100hz_trousers1.csv")
 log("Pre-calibration down! The pre-learned coefficients shows as below:\n")
 ped = Pedometer(pre, 175)
 
@@ -71,9 +71,19 @@ for entry in data:
   if ped.detect_step(entry, entry['time'] * 10 ** -9, 1):
     pass
 distance = ped.get_distance()
+ped.method_detection(data)
 end = getruntime() - start
-log("\nTotal runtime: ", end, '\n')
 
+
+log("\nTotal runtime: ", end, '\n')
+if ped.carrying_flag == 0:
+  log("Carrying method: Unknown\n")
+elif ped.carrying_flag == 1:
+  log("Carrying method: hold in hand\n")
+elif ped.carrying_flag == 2:
+  log("Carrying method: put in trousers pocket\n")
+elif ped.carrying_flag == 3:
+  log("Carrying method: put in coat pocket\n")
 log("\nThe distance will be estimated from two different detection algorithms and two estimation algorithms.\n")
 log("\nCrossing zero algorithm:\n  Distance estimation from average stride: ", distance['average_zero_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_zero'],"meters\n")
 log("\nPeak search algorithm:\n  Distance estimation from average stride: ", distance['average_peak_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_peak'],"meters\n") 

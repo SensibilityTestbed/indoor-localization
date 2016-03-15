@@ -69,6 +69,9 @@ class Pedometer:
     self.distance_peak = []
     self.time_peak = []
 
+    self.acc_for_method = []
+    self.carrying_flag = 0
+
     log("\nThank you for your patiences. Please walk around.\n\nStep detections:\n")
     
 
@@ -91,15 +94,87 @@ class Pedometer:
     # step detection
     peak = self._detect_peak(maf_mag, time)
     zero = self._detect_zero(maf_mag, time)
+
+
+    # carrying method detection
+    self._method_detection(raw_acc)
+
     if method == 1:
       return peak
     else:
       return zero
 
+  def method_detection(self, data):
+    avg_acc_x = 0.0
+    avg_acc_y = 0.0
+    avg_acc_z = 0.0
+    for entry in data:
+      avg_acc_x += entry['xforce']
+      avg_acc_y += entry['yforce']
+      avg_acc_z += entry['zforce']
+    avg_acc_x /= len(data)
+    avg_acc_y /= len(data)
+    avg_acc_z /= len(data)
+
+    log("average axis X:", avg_acc_x, "average axis Y:", avg_acc_y, "average axis Z:", avg_acc_z, "\n")
+
+    # hold in hand
+    if avg_acc_z ** 2 > (avg_acc_x ** 2 + avg_acc_y ** 2) * 2:
+      self.carrying_flag = 1
+    else:
+      # trousers
+      if avg_acc_y ** 2 > (avg_acc_x ** 2 + avg_acc_z ** 2) * 2:
+        self.carrying_flag = 2
+      # coat
+      else:
+        self.carrying_flag = 3
+
+
+
+
+  def _method_detection(self, acc):
+    self.acc_for_method.append(acc)
+    if len(self.acc_for_method) == 500:
+      avg_acc_x = 0.0
+      avg_acc_y = 0.0
+      avg_acc_z = 0.0
+      for i in range(0, 500):
+        avg_acc_x += self.acc_for_method[i]['xforce']
+        avg_acc_y += self.acc_for_method[i]['yforce']
+        avg_acc_z += self.acc_for_method[i]['zforce']
+      avg_acc_x /= 500.0
+      avg_acc_y /= 500.0
+      avg_acc_z /= 500.0
+
+      # hold in hand
+      if avg_acc_z ** 2 > (avg_acc_x ** 2 + avg_acc_y ** 2) * 2:
+        self.carrying_flag = 1
+      else:
+        # trousers
+        if avg_acc_y ** 2 > (avg_acc_x ** 2 + avg_acc_z ** 2) * 2:
+          self.carrying_flag = 2
+        # coat
+        else:
+          self.carrying_flag = 3
+      self.acc_for_method = []
+
+      if self.carrying_flag == 0:
+        log("Current carrying method: unknown\n")
+      elif self.carrying_flag == 1:
+        log("Current carrying method: hold in hand\n")
+      elif self.carrying_flag == 2:
+        log("Current carrying method: put in trousers pocket\n")
+      elif self.carrying_flag == 3:
+        log("Current carrying method: put in coat pocket\n")
+
+
+
 
 
   def get_stepcount(self):
     return {"zero": self.zerocount, "peak": self.peakcount} 
+
+
 
 
 
