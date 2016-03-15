@@ -9,7 +9,7 @@
 
 dy_import_module_symbols("math.r2py")
 pi = 3.14159265358979323846
-
+e = math_e
 
 
 # converts decimal degrees to radians
@@ -83,10 +83,8 @@ def atan2(y, x):
     if y >= 0:
       result = result + pi
     else:
-      result = reulst - pi
+      result = result - pi
   return result
-
-log(sin(0.5),'\n')
 
 
 # -*- mode: python;-*-
