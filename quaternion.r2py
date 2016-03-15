@@ -16,8 +16,8 @@ GRAVITY = [0.0, 0.0, 1.0]
 def quaternion_from_gravity(acc):
   unit_acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
   q = matrix_vector_cross_product(unit_acc, GRAVITY)
-  q = matrix_scale(q, ((1 - unit_acc[2]) / 2.0) / ((1 - unit_acc[2] ** 2) ** 0.5))
-  return matrix_transpose(q)[0] + [(1 + unit_acc[2]) / 2.0]
+  q = matrix_scale(q, ((1 - unit_acc[2]) * 0.5) / ((1 - unit_acc[2] ** 2) ** 0.5))
+  return matrix_transpose(q)[0] + [(1 + unit_acc[2]) * 0.5]
   
 
 # Multiplies two quaternions and returns the result
@@ -39,12 +39,13 @@ def quaternion_inverse(q):
 def quaternion_rotate(q, v):
   rotation = quaternion_multiply(quaternion_multiply(q, v), quaternion_inverse(q))
   return matrix_scale([rotation], 1.0 / matrix_row_magnitude(rotation))[0]
-
+  #v_rotated = matrix_multiply(quaternion_to_matrix(quaternion_inverse(q)), v)
+  #return matrix_scale(v_rotated, 1.0 / matrix_column_magnitude(v_rotated))
 
 # Builds a skew symmetric 
 # matrix for axes or angles
 def quaternion_skew_symmetric(x, y, z):
-  return [[0, -z, y], [z, 0, -x], [-y, x, 0]]
+  return [[0, -z, y, x], [z, 0, -x, y], [-y, x, 0, z], [-x, -y, -z, 0]]
 
 
 # Builds a matrix that takes the derivative of a 
