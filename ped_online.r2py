@@ -34,6 +34,8 @@ class Pedometer:
     self.gravity_constant = precalibration.get_gravity()
     self.samplerate = precalibration.get_sample_rate()
     self.threshold = precalibration.get_threshold()
+    if self.threshold < 0.15:
+      self.threshold = 0.15
     self.steptime = precalibration.time
 
     # Initialize moving average filter
@@ -69,6 +71,10 @@ class Pedometer:
     self.acc_for_method = []
     self.carrying_flag = 0
 
+    self.motion_flag = 0
+
+    self.moving_freq = 0.0
+
     log("\nThank you for your patiences. Please walk around.\n\nStep detections:\n")
 
     
@@ -101,6 +107,10 @@ class Pedometer:
 
     # carrying method detection
     self._method_detection(raw_acc)
+
+
+    self._motion_detect(maf_mag, time)
+      
 
     if method == 1:
       return peak
@@ -145,7 +155,18 @@ class Pedometer:
         log("Current carrying method: put in coat pocket\n")
 
 
-
+  def _motion_detect(self, mag, time):
+    if mag > self.threshold or time - self.steptime < 1.0:
+      if self.motion_flag == 0:
+        if self.moving_freq > 2.5:
+          log("Status: running\n")
+        else:
+          log("StatusL walking\n")
+      self.motion_flag = 1
+    else:
+      if self.motion_flag == 1:
+        log("Status: standing\n")
+      self.motion_flag = 0
 
 
   def get_stepcount(self):
@@ -235,6 +256,7 @@ class Pedometer:
   def _distance_estimation(self, lasttime, currenttime):
     interval = currenttime - lasttime
     step_per_second = 1.0/interval
+    self.moving_freq = step_per_second
     if 0.0 <= step_per_second < 1.0:
       stride_per_step = self.height/5.0
     elif 1.0 <= step_per_second < 1.5:
