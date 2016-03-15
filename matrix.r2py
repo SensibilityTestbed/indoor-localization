@@ -8,6 +8,7 @@
 """
 
 dy_import_module_symbols('trig.r2py')
+dy_import_module_symbols('math.r2py')
 
 class MatrixDimensionsError(RepyException):
   """For operations that can't be done on a matrix due to size"""
@@ -51,17 +52,36 @@ def matrix_is_square(matrix):
   return True
 
 
-# Adds two matrices together
-def matrix_add(m1, m2):
-  if len(m1) != len(m2) or len(m1[0]) != len(m2[0]):
-    raise MatrixDimensionsError("Matrix dimensions are invalid for addition.")
-  return [[m1[row][col] + m2[row][col] for col in range(len(m1[0]))] for row in range(len(m1))]  
+# Adds k mxn matrices together
+def matrix_add(m1, *argv):
+  result = []
+  for row in range(len(m1)):
+    result.append([])
+    for col in range(len(m1[0])):
+      result[row].append(m1[row][col])
+      for right in argv:
+        try:
+          result[row][col] += right[row][col]
+        except IndexError:
+          raise MatrixDimensionsError("Matrix dimensions are invalid for addition.")
+  return result
+ 
 
 
-def matrix_minus(m1, m2):
-  if len(m1) != len(m2) or len(m1[0]) != len(m2[0]):
-    raise MatrixDimensionsError("Matrix dimensions are invalid for addition.")
-  return [[m1[row][col] - m2[row][col] for col in range(len(m1[0]))] for row in range(len(m1))]  
+# Subtracts k mxn matrices together
+def matrix_minus(m1, *argv):
+  result = []
+  for row in range(len(m1)):
+    result.append([])
+    for col in range(len(m1[0])):
+      result[row].append(m1[row][col])
+      for right in argv:
+        try:
+          result[row][col] -= right[row][col]
+        except IndexError:
+          raise MatrixDimensionsError("Matrix dimensions are invalid for addition.")
+  return result
+ 
 
 
 # Multiplies a copy of the matrix by a scalar
@@ -69,18 +89,21 @@ def matrix_scale(matrix, scalar):
   return [[scalar * val for val in row] for row in matrix]
 
 
-# Mutliplies two matrices together
-def matrix_multiply(left, right):
-  if len(left[0]) != len(right):
-    raise MatrixDimensionsError("Matrix dimensions are invalid for multiplication.")
+# Mutliplies n matrices together
+def matrix_multiply(left, *argv):
+  myleft = left
 
-  product = []
-  for row in range(len(left)):
-    product.append([])
-    for col in range(len(right[0])):
-      product[row].append(0)
-      for param in range(len(right)):
-        product[row][col] += left[row][param] * right[param][col]
+  for right in argv:
+    if len(myleft[0]) != len(right):
+      raise MatrixDimensionsError("Matrix dimensions are invalid for multiplication.")
+    product = []
+    for row in range(len(myleft)):
+      product.append([])
+      for col in range(len(right[0])):
+        product[row].append(0)
+        for param in range(len(right)):
+          product[row][col] += myleft[row][param] * right[param][col]
+    myleft = product
 
   return product
 
@@ -135,11 +158,11 @@ def matrix_inverse(matrix):
   for row in range(len(matrix)):
     augment[row].extend(identity[row])
 
-  for row in range(len(matrix)):
+  for row in range(len(augment)):
 
     # Find the pivot row
     pivot = row
-    for lower_row in range(row + 1, len(matrix)):
+    for lower_row in range(row + 1, len(augment)):
       if abs(augment[lower_row][row]) > abs(augment[pivot][row]):
         pivot = lower_row
     matrix_row_swap(augment, row, pivot)
@@ -158,29 +181,190 @@ def matrix_inverse(matrix):
     # Subtract a multiple of the current row
     # from every other row to zero out the 
     # rest of that column
-    for row_num in range(row) + range(row+1, len(matrix)):
+    for row_num in range(row) + range(row+1, len(augment)):
       multiple = float(augment[row_num][row]) / augment[row][row]
       for col in range(row, len(augment[0])):
         augment[row_num][col] -= multiple * augment[row][col]
         
-  return [row[:len(matrix)] for row in augment]
+  return [row[len(matrix):] for row in augment]
 
 
     
+def matrix_norm(matrix):
+  maxsum = 0.0
+  for col in range(3):
+    csum = 0.0
+    for row in range(3):
+      csum += abs(matrix[row][col])
+    maxsum = max(maxsum, csum) 
+  return maxsum
+
+
+# ===========================================================================
+def math_combination(n, k):
+  if k > n or n < 0 or k < 0:
+    return 0
+  val = 1
+  for i in xrange(min(k, n - k)):
+    val = (val * (n - i)) // (i + 1)
+  return val
+
+
+
+def math_factorial(x):
+  result = 1 
+  for num in range(x):
+    result *= (num + 1)
+  return result
+# ===========================================================================
+
+
+
+def matrix_abs(matrix):
+  absm = matrix_init(len(matrix), len(matrix[0]))
+  for row in xrange(len(absm)):
+    for col in xrange(len(absm[0])):
+      absm[row][col] = abs(matrix[row][col])
+  return absm
+
+
+
+# Performs (matrix ** power) with O(log(n)) matrix multiplications
+def matrix_power(matrix, power):
+  if power == 0:
+    return matrix_identity(len(matrix))
+  if power == 1:
+    return matrix
+
+  m = [matrix]
+  logp = int(math_log(power, 2))
+
+  for i in range(logp):
+    m.append(matrix_multiply(m[-1], m[-1]))
+
+  result = m[-1]
+  diff = power - (2 ** logp)
+  p = 2 ** (logp - 1)
+  logp -= 2
+  
+  while diff > 0:
+    if diff - p >= 0:
+      result = matrix_multiply(result, m[logp])
+    logp -= 1
+    p = p >> 1
+
+  return result
+
+
+
+ROUNDOFF = 2 ** -53
+
+def _exp_helper(matrix, power):
+  norm = matrix_norm(matrix)
+  if norm == 0:
+    return 0
+
+  p = 2 * power + 1
+  c = 1.0 / (math_combination(2 * p, p) * math_factorial(2 * p + 1))
+  return max(0, int(math_ceil(math_log(c / ROUNDOFF, 2) / (2 * power))))
+
+
+ETA3 = 1.495585217958292e-2
+ETA5 = 2.539398330063230e-1
+ETA7 = 9.504178996162932e-1
+ETA9 = 2.097847961257068
+
+PADE3 = (120., 60., 12., 1.)
+PADE5 = (30240., 15120., 3360., 420., 30., 1.)
+PADE7 = (17297280., 8648640., 1995840., 277200., 25200., 1512., 56., 1.)
+PADE9 = (17643225600., 8821612800., 2075673600., 302702400., 30270240.,
+         2162160., 110880., 3960., 90., 1.)
+PADE13 = (64764752532480000., 32382376266240000., 7771770303897600.,
+          1187353796428800., 129060195264000., 10559470521600., 670442572800.,
+          33522128640., 1323241920., 40840800., 960960., 16380., 182., 1.)
+
+THETA13 = 4.25
+
 # Calculates the exponential of a matrix (e^matrix)
-def matrix_exponential_skew_symmetric(matrix):
-  mag = 0
-  # Sum the squares of the upper
-  # right triangle of the matrix.
-  for row in range(len(matrix) - 1):
-    for col in range(row + 1, len(matrix)):
-      mag += matrix[row][col] ** 2 
-  mag = mag ** 0.5
+def matrix_exp(m1):
+  """
+    Adapted from scipy's implementation of Nicholas J. Higham's
+    algorithm. Credit goes to Travis Oliphant, Anthony Scopatz, 
+    and Jake Vanderplas.
+  """
 
-  exp = matrix_add(matrix_identity(len(matrix)), matrix_scale(matrix, sin(mag) / mag))
-  return matrix_add(exp, matrix_scale(matrix_multiply(matrix, matrix), (1 - cos(mag)) / (mag ** 2))) 
+  # matrix terms of power series
+  identity = matrix_identity(len(m1))
+  m2 = matrix_multiply(m1, m1)
+  m3 = matrix_multiply(m2, m1)
+  m4 = matrix_multiply(m2, m2)
+  m6 = matrix_multiply(m2, m4)
+
+  # calculate approx error threshold
+  d4 = matrix_norm(m4) ** (1.0 / 4) 
+  d6 = matrix_norm(m6) ** (1.0 / 6)  
+  eta = max(d4, d6) 
+
+  # try 3rd order Pade approximant first
+  if eta < ETA3 and _exp_helper(m3, 3) == 0:
+    u = matrix_multiply(m1, matrix_add(matrix_scale(m2, PADE3[3]), matrix_scale(identity, PADE3[1])))  
+    v = matrix_add(matrix_scale(m2, PADE3[2]), matrix_scale(identity, PADE3[0]))
+    return matrix_multiply(matrix_inverse(matrix_minus(v, u)), matrix_add(u, v))
+
+  # Is 5th order Pade good enough?
+  if eta < ETA5 and _exp_helper(matrix_multiply(m4, m1), 5) == 0:
+    u = matrix_multiply(m1, matrix_add(matrix_scale(m4, PADE5[5]), matrix_scale(m2, PADE5[3]), matrix_scale(identity, PADE5[1])))
+    v = matrix_add(matrix_scale(m4, PADE5[4]), matrix_scale(m2, PADE5[2]), matrix_scale(identity, PADE5[0]))
+    return matrix_multiply(matrix_inverse(matrix_minus(v, u)), matrix_add(u, v))
+
+  # recalculate threshold for higher orders
+  d8 = matrix_norm(matrix_multiply(m4, m4)) ** (1.0 / 8)
+  eta = max(d6, d8)
+
+  # 7th order Pade?
+  if eta < ETA7 and _exp_helper(matrix_multiply(m6, m1), 7) == 0:
+    u = matrix_multiply(m1, matrix_add(matrix_scale(m6, PADE7[7]), matrix_scale(m4, PADE7[5]), matrix_scale(m2, PADE7[3]), matrix_scale(identity, PADE7[1])))
+    v = matrix_add(matrix_scale(m6, PADE7[6]), matrix_scale(m4, PADE7[4]), matrix_scale(m2, PADE7[2]), matrix_scale(identity, PADE7[0]))
+    return matrix_multiply(matrix_inverse(matrix_minus(v, u)), matrix_add(u, v))
+
+  # 9th order Pade?
+  if eta < ETA9 and _exp_helper(matrix_multiply(m3, m6), 9) == 0:
+    u = matrix_multiply(m1, matrix_add(matrix_scale(m8, PADE9[9]), matrix_scale(m6, PADE9[7]), matrix_scale(m4, PADE9[5]), matrix_scale(m2, PADE9[3]), matrix_scale(identity, PADE9[1])))
+    v = matrix_add(matrix_scale(m8, PADE9[8]), matrix_scale(m6, PADE9[6]), matrix_scale(m4, PADE9[4]), matrix_scale(m2, PADE9[2]), matrix_scale(identity, PADE9[0]))
+    return matrix_multiply(matrix_inverse(matrix_minus(v, u)), matrix_add(u, v))
+
+  # None of the other approximants were good enough,
+  # so calculate the 13th order Pade approximant finally.
+
+  # recalculate threshold for 13th order
+  d10 = matrix_norm(matrix_multiply(m4, m6)) ** (1.0/ 10)
+  eta = max(eta, max(d8, d10))
+
+  s = max(0, int(math_ceil(math_log(eta / THETA13, 2))))
+  sm1 = matrix_scale(m1, 2 ** -s)
+  sm2 = matrix_multiply(sm, sm)
+  sm4 = matrix_multiply(sm2, sm2)
+  sm8 = matrix_multiply(sm4, sm4)
+  sm13 = matrix_multiply(sm8, sm4, sm1)
+  s += _exp_helper(sm13, 13)
+  sm = matrix_scale(m1, 2 ** -s)
+  m2 = matrix_scale(m2, 2 ** (-2 * s))
+  m4 = matrix_scale(m4, 2 ** (-4 * s))
+  m6 = matrix_scale(m6, 2 ** (-6 * s))
+
+  left = matrix_multiply(m6, matrix_add(matrix_scale(m6, PADE13[13]), matrix_scale(m4, PADE13[11]), matrix_scale(m2, PADE13[9])))
+  right = matrix_add(matrix_scale(m6, PADE13[7]), matrix_scale(m4, PADE13[5]), matrix_scale(m2, PADE13[3]), matrix_scale(identity, PADE13[1]))
+  u = matrix_multiply(sm, matrix_add(left, right))
+  left = matrix_multiply(m6, matrix_add(matrix_scale(m6, PADE13[12]), matrix_scale(m4, PADE13[10]), matrix_scale(m2, PADE13[8])))
+  right = matrix_add(matrix_scale(m6, PADE13[6]), matrix_scale(m4, PADE13[4]), matrix_scale(m2, PADE13[2]), matrix_scale(identity, PADE13[0]))
+  v = matrix_add(left, right)
+  exp = matrix_multiply(matrix_inverse(matrix_minus(v, u)), matrix_add(u, v))
+  for i in range(s):
+    exp = matrix_multiply(exp, exp)
+  return exp
 
 
+  
 # Calculates the determinant of a 2x2 matrix
 def matrix_determinant_2x2(matrix):
 
@@ -211,7 +395,7 @@ def matrix_determinant_3x3(matrix):
 # Calculates the inverse of a 2x2 matrix efficiently
 def matrix_inverse_2x2(matrix):
 
-  if not matrix_square(matrix):
+  if not matrix_is_square(matrix):
     raise MatrixInverseError("Matrix isn't square, has no inverse.")
 
   det = matrix_determinant_2x2(matrix)
@@ -225,7 +409,7 @@ def matrix_inverse_2x2(matrix):
 # Calculates the inverse of a 3x3 matrix efficiently
 def matrix_inverse_3x3(matrix):
 
-  if not matrix_square(matrix):
+  if not matrix_is_square(matrix):
     raise MatrixInverseError("Matrix isn't square, has no inverse.")
     
   det = matrix_determinant_3x3(matrix)
