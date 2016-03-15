@@ -221,17 +221,17 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Factored partial derivative of 
     # the acceleration with respect to 
     # each component of the state quaternion
-    acc_partials = [[q[2], -q[3], q[0], -q[1]],
-                    [q[3], q[2], q[1], q[0]], 
-                    [-q[0], -q[1], q[2], q[3]]]
+    acc_partials = [[ q[2], -q[3], q[0], -q[1]],
+                    [ q[3],  q[2], q[1],  q[0]], 
+                    [-q[0], -q[1], q[2],  q[3]]]
     # Unfactor before inserting into Jacobian
     acc_partials = matrix_scale(acc_partials, 2 * GRAVITY / q_norm)
     
     # Factored partial derivative of the magnetometer 
     # readings with respect to the state quaternion. 
-    magnet_partials = [[[q[0], q[1], q[2]], [-q[1], q[0], -q[3]], [-q[2], q[3], q[0]], [q[3], q[2], -q[1]]], 
-                       [[q[1], -q[0], q[3]], [q[0], q[1], q[2]], [-q[3], -q[2], q[1]], [-q[2], q[3], q[0]]], 
-                       [[q[2], -q[3], -q[0]], [q[3], q[2], -q[1]], [q[0], q[1], q[2]], [q[1], -q[0], q[3]]]]
+    magnet_partials = [[  [q[0], q[1], q[2]], [-q[1], q[0], -q[3]],  [-q[2], q[3], q[0]], [q[3], q[2], -q[1]]], 
+                       [ [q[1], -q[0], q[3]],   [q[0], q[1], q[2]], [-q[3], -q[2], q[1]], [-q[2], q[3], q[0]]], 
+                       [[q[2], -q[3], -q[0]],  [q[3], q[2], -q[1]],   [q[0], q[1], q[2]], [q[1], -q[0], q[3]]]]
     # Each vector in magnet needs to be mutliplied by the scaled magnetic 
     # field vector before being inserted into the Jacobian. 
     scaled_field = matrix_scale(matrix_transpose(self._state[7:]), 2.0 / q_norm)
@@ -260,11 +260,11 @@ class OrientationFilter(ExtendedKalmanFilter):
 
     # Calculate rotations of gravitational and magnetic vectors
     rotation = quaternion_to_matrix(self._get_quaternion())
-    g_body = matrix_multiply(rotation, GRAVITY_VECTOR)
-    magnetic_field_body = matrix_multiply(rotation, self._state[7:])
+    g_phone = matrix_multiply(rotation, GRAVITY_VECTOR)
+    magnetic_field_phone = matrix_multiply(rotation, self._state[7:])
 
     # Add biases in state vector to combined rotations vector
-    expected = matrix_add(g_body, self._state[4:7]) + magnetic_field_body
+    expected = matrix_add(g_phone, self._state[4:7]) + magnetic_field_phone
     #log("f(X-) =\n", expected, '\n\n')
     return expected
 
@@ -289,7 +289,7 @@ class OrientationFilter(ExtendedKalmanFilter):
 
     else:
       # Don't rely on accelerometer
-      acc_covar = matrix_scale(MAX_COVAR, 1)
+      acc_covar = matrix_copy(MAX_COVAR) 
     
     magnet_covar = matrix_init(3, 3)
     for diag in range(3):
