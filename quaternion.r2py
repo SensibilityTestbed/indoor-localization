@@ -45,7 +45,7 @@ def quaternion_rotate(q, v):
 # Builds a skew symmetric 
 # matrix for axes or angles
 def quaternion_skew_symmetric(x, y, z):
-  return [[0, -z, y, x], [z, 0, -x, y], [-y, x, 0, z], [-x, -y, -z, 0]]
+  return [[0, z, y, -x], [-z, 0, -x, -y], [-y, x, 0, z], [x, y, -z, 0]]
 
 
 # Builds a matrix that takes the derivative of a 
