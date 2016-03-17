@@ -65,6 +65,11 @@ class OrientationFilter(ExtendedKalmanFilter):
     error[0][0] = duy * c1 + uy * uy * c2
     error[1][1] = dux * c1 + ux * ux * c2
     error[3][3] = duz * 0.5
+    """
+    for diag in range(0, 3):
+      error[diag][diag] = precalibration.bias_variance[diag]
+    error[3][3] = matrix_row_magnitude(precalibration.bias_variance)
+    """
     # The error in the accelerometer bias is simply its variance.
     for diag in range(4, 7):
       error[diag][diag] = precalibration.bias_variance[diag - 4]
@@ -93,7 +98,6 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._window_size = 1
      
 
-
   def _normalize(self):
     self._state[:4] = matrix_scale(self._state[:4], 1.0 / matrix_column_magnitude(self._state[:4]))
 
@@ -114,7 +118,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     transition_matrix = quaternion_skew_symmetric(pitch, roll, yaw)
   
     # Transition = solution to first order differential equation for quaternion
-    transition_matrix = matrix_exp(matrix_scale(transition_matrix, self._timestep))
+    transition_matrix = matrix_exp(matrix_scale(transition_matrix, 0.5 * self._timestep))
 
     # SL4A version
     #transition_matrix = matrix_exp(transition_matrix)  
@@ -156,6 +160,7 @@ class OrientationFilter(ExtendedKalmanFilter):
 
   def _compute_a_priori_error(self, transition_matrix):
     ExtendedKalmanFilter._compute_a_priori_error(self, transition_matrix)
+    #self._error = matrix_scale(self._error, 3.219905e-3)
     #log("P- =\n", self._error, '\n\n')
 
 
@@ -167,10 +172,10 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Q = gamma * variance_gyro * gamma^T,
     # where gamma is the matrix describing the
     # the transition of the quaternion noise.
-    gamma = [[-q[0], -q[1], -q[2]],
+    gamma = [[-q[1],  q[0],  q[3]],
+             [-q[0], -q[1], -q[2]],
              [ q[3], -q[2],  q[1]],
-             [ q[2],  q[3], -q[0]],
-             [-q[1],  q[0],  q[3]]]
+             [ q[2],  q[3], -q[0]]]
     Q = matrix_multiply(gamma, self._gyro_variance)
     Q = matrix_scale(matrix_multiply(Q, matrix_transpose(gamma)), 0.25)
 
@@ -211,12 +216,16 @@ class OrientationFilter(ExtendedKalmanFilter):
     # is 6x1, so the Jacobian is 6x10
     jacobian = matrix_init(6, 10)
     
-    # Partial derivative on right
-    # 6x6 of Jacobian is Identity. 
-    identity = matrix_identity(6)
+    # Partial derivative of acc with
+    # respect to bias is Identity. 
+    identity = matrix_identity(3)
+
+    zeroes = matrix_init(3, 3)
   
     q = self._get_quaternion() 
-    q_norm = matrix_row_magnitude(q)
+    #q_norm = matrix_row_magnitude(q)
+
+    rotation = quaternion_to_matrix(q)
 
     # Factored partial derivative of 
     # the acceleration with respect to 
@@ -225,7 +234,8 @@ class OrientationFilter(ExtendedKalmanFilter):
                     [ q[3],  q[2], q[1],  q[0]], 
                     [-q[0], -q[1], q[2],  q[3]]]
     # Unfactor before inserting into Jacobian
-    acc_partials = matrix_scale(acc_partials, 2 * GRAVITY / q_norm)
+    #acc_partials = matrix_scale(acc_partials, 2 * GRAVITY / q_norm)
+    acc_partials = matrix_scale(acc_partials, 2 * GRAVITY)
     
     # Factored partial derivative of the magnetometer 
     # readings with respect to the state quaternion. 
@@ -234,12 +244,13 @@ class OrientationFilter(ExtendedKalmanFilter):
                        [[q[2], -q[3], -q[0]],  [q[3], q[2], -q[1]],   [q[0], q[1], q[2]], [q[1], -q[0], q[3]]]]
     # Each vector in magnet needs to be mutliplied by the scaled magnetic 
     # field vector before being inserted into the Jacobian. 
-    scaled_field = matrix_scale(matrix_transpose(self._state[7:]), 2.0 / q_norm)
+    #scaled_field = matrix_scale(matrix_transpose(self._state[7:]), 2.0 / q_norm)
+    scaled_field = matrix_scale(matrix_transpose(self._state[7:]), 2.0)
     
     for row in range(3):
       # Fill top three Jacobian rows with
       # accelerometer and identity partials
-      jacobian[row] = acc_partials[row] + identity[row]
+      jacobian[row] = acc_partials[row] + identity[row] + zeroes[row]
       magnet_row = row + 3
       # Fill first four columns of bottom three 
       # Jacobian rows with magnetometer partials
@@ -247,7 +258,7 @@ class OrientationFilter(ExtendedKalmanFilter):
         jacobian[magnet_row][col] = matrix_dot_product([magnet_partials[row][col]], scaled_field)
       # Insert identity partials in remaining
       # columns of bottom three rows
-      jacobian[magnet_row] = jacobian[magnet_row][:4] + identity[magnet_row] 
+      jacobian[magnet_row] = jacobian[magnet_row][:4] + zeroes[row] + rotation[row] 
 
     #log("F =\n", jacobian, '\n\n')
     return jacobian
@@ -302,7 +313,9 @@ class OrientationFilter(ExtendedKalmanFilter):
 
     R = acc_covar + magnet_covar
     #log("R =\n", R, '\n\n')
-    return R
+    #return R
+    return matrix_scale(matrix_identity(6), 9223372036854775807)
+
 
 
   def _compute_magnetometer_variance(self):
@@ -378,12 +391,20 @@ class OrientationFilter(ExtendedKalmanFilter):
     #log("X =\n", self._state, '\n\n')
     #log("P =\n", self._error, '\n\n=======================================================================\n\n')
 
+
+    return q 
+
+
+
+  def get_heading(self, sensor_data):
+    q = self.get_orientation(sensor_data)
     """
     acc_world = matrix_multiply(rotation, matrix_minus(measurements[:3], self._state[4:7])) 
     linear_acc = matrix_minus(acc_world, GRAVITY_VECTOR) 
     theta = atan2(linear_acc[1][0], linear_acc[0][0])
+    return theta
     """
-
-    return q 
+    heading = matrix_multiply(quaternion_to_matrix(q), [[1], [0], [0]])
+    return atan2(heading[1][0], heading[0][0])
 
 # -*- mode: python;-*-
