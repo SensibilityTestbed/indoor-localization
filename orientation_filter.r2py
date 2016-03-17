@@ -25,7 +25,6 @@ GRAVITY = 9.81
 GRAVITY_VECTOR = [[0.0], [0.0], [GRAVITY]]
 MAX_COVAR = matrix_scale(matrix_identity(3), 9223372036854775807) 
 NYQUIST_STEP_FREQ = 0.125
-INVERSE_ROOT_3 = 1.0 / (3 ** 0.5)
 
 
 
@@ -86,7 +85,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._gyro_variance = matrix_init(3, 3)
     for diag in range(3):
       self._gyro_variance[diag][diag] = precalibration.gyro_stats.variance[diag]  
-    self._acc_variance = precalibration.acc_stats.variance * INVERSE_ROOT_3
+    self._acc_variance = precalibration.acc_stats.variance / (3 ** 0.5)
     self._magnet_variance = precalibration.magnet_stats.variance
 
     #self._window_length = int(NYQUIST_STEP_FREQ * precalibration.get_sample_rate())
@@ -121,7 +120,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     transition_matrix = matrix_exp(matrix_scale(transition_matrix, 0.5 * self._timestep))
 
     # SL4A version
-    #transition_matrix = matrix_exp(transition_matrix)  
+    #transition_matrix = matrix_exp(matrix_scale(transition_matrix, 0.5)  
 
     # Right now the transition matrix only accounts
     # for the quaternion (orientation), so it is 4x4.
