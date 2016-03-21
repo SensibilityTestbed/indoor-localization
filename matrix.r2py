@@ -7,6 +7,8 @@
   Matrices are taken to be two-dimensional lists.
 """
 
+
+#dy_import_module_symbols('trig.r2py')
 dy_import_module_symbols('math.r2py')
 
 class MatrixDimensionsError(RepyException):
