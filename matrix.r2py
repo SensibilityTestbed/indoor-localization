@@ -7,7 +7,6 @@
   Matrices are taken to be two-dimensional lists.
 """
 
-dy_import_module_symbols('trig.r2py')
 dy_import_module_symbols('math.r2py')
 
 class MatrixDimensionsError(RepyException):
@@ -15,6 +14,18 @@ class MatrixDimensionsError(RepyException):
 
 class MatrixInverseError(RepyException):
   """For singular matrices"""
+
+# Returns a matrix as a
+# pretty string.
+def matrix_print(matrix):
+  matrix_str = '['
+  for row in matrix:
+    matrix_str += '['
+    for num in row:
+      matrix_str += str(num) + '\t'
+    matrix_str = matrix_str[:-1] + '],\n'
+  return matrix_str[:-2] + ']'
+
 
 # Initializes an mxn null (all zero) matrix 
 def matrix_init(m, n):
@@ -42,6 +53,43 @@ def matrix_row_magnitude(row):
   return sum([val * val for val in row]) ** 0.5
 
 
+# Returns a square matrix with the
+# given list in the diagonal.
+def matrix_diag(diaglist):
+  matrix = matrix_init(len(diaglist), len(diaglist))
+  for diag in range(len(diaglist)):
+    matrix[diag][diag] = diaglist[diag] 
+  return matrix
+
+
+# Returns a square matrix with the
+# given matrices stacked along the
+# diagonal.
+def matrix_block_diag(matrix, *args):
+  if args is None:
+    return matrix
+
+  rows = r = len(matrix)
+  cols = c = len(matrix[0])
+
+  for block in args:
+    rows += len(block)
+    cols += len(block[0])
+
+  block_diag = matrix_init(rows, cols)
+
+  for row in range(len(matrix)):
+    for col in range(len(matrix)):
+      block_diag[row][col] = matrix[row][col]
+
+  for block in args:
+    for row in range(len(block)):
+      for col in range(len(block[0])):
+        block_diag[r + row][c + col] = block[row][col]
+    r += len(block)
+    c += len(block[0])
+
+  return block_diag
 
 
 # Checks a matrix is nxn
