@@ -87,7 +87,11 @@ class ExtendedKalmanFilter:
   # i.e. the measurement correct state.
   def _compute_a_posteriori_state(self, gain, measurements):
     #nlog('gain =\n', gain, '\n\n') 
-    self._state = matrix_add(self._state, matrix_multiply(gain, matrix_minus(measurements, self._compute_expected_measurements())))
+    delta = matrix_minus(measurements, self._compute_expected_measurements()) 
+    #log('delta =\n', delta, '\n\n')
+    delta_state = matrix_multiply(gain, delta)
+    #log('delta state =\n', delta_state, '\n\n')
+    self._state = matrix_add(self._state, delta_state)
     #log('post state =\n', self._state, '\n\n')
 
 

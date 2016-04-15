@@ -52,7 +52,13 @@ pre.magnetic_field = [[16.0], [79.3], [-63.4]]
 #pre.magnetic_intensity = 51.8345
 
 
-
+"""
+bias:
+flat 0.030357569 -0.107287924  -0.28257366
+drop 0.101382471  -0.147303259  -0.080313496
+     0.107027756 -0.13419674 -0.116084084
+flip 0.006756171 -0.015592093 -0.25117373
+"""
 
 compass = OrientationFilter(pre)
 
@@ -62,10 +68,10 @@ data = import_csv("180.csv")
 # v = matrix_transpose([pre.gravity_vector])
 # g = [[0.], [0.], [1.]]
 # log('0', matrix_multiply(quaternion_to_matrix(quaternion_from_gravity(pre.gravity_vector)), g), '\n')
-acc = [data[0]['xforce'], data[0]['yforce'], data[0]['zforce'], 0.]
-acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
+#acc = [data[0]['xforce'], data[0]['yforce'], data[0]['zforce'], 0.]
+#acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
 #log('start:', matrix_multiply(quaternion_to_matrix(quaternion_inverse(quaternion_from_gravity(pre.gravity_vector))), acc), '\n')
-log('start:', quaternion_rotate(quaternion_from_gravity(pre.gravity_vector), acc)[:3], '\n')
+#log('start:', quaternion_rotate(quaternion_from_gravity(pre.gravity_vector), acc)[:3], '\n')
 # cnt = 1
 start = getruntime()
 for entry in data:
@@ -76,7 +82,7 @@ for entry in data:
 acc = [data[-1]['xforce'], data[-1]['yforce'], data[-1]['zforce'], 0.]
 acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
 log('end:', quaternion_rotate(q, acc)[:3], '\n\n')
-
+#log('acc:', acc, '\n\n')
 end = getruntime() - start
-log("\n Total runtime: ", end, '\n\n') 
+#log("\n Total runtime: ", end, '\n\n') 
   

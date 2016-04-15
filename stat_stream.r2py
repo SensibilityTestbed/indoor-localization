@@ -15,5 +15,6 @@ class StatStream():
     self.mean = ((self.length - 1) * self.mean + x) / self.length
     if self.length > 1:
       self.variance = ((x - self.mean) ** 2) / (self.length - 1) + (self.length - 1) * self.variance / self.length 
+    return self
 
 # -*- mode: python;-*-

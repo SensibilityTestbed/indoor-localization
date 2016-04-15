@@ -19,13 +19,22 @@ dy_import_module_symbols('quaternion.r2py')
 dy_import_module_symbols('matrix.r2py')
 #dy_import_module_symbols('math.r2py')
 dy_import_module_symbols('trig_taylor.r2py')
+dy_import_module_symbols('stat_stream.r2py')
 
 # Filter constants
 GRAVITY = 9.81
 GRAVITY_VECTOR = [[0.0], [0.0], [GRAVITY]]
 MAX_COVAR = matrix_scale(matrix_identity(3), 9223372036854775807) 
-NYQUIST_STEP_FREQ = 0.125
+NYQUIST_STEP_FREQ = 0.0625 #0.125
+ONEDEGREE = pi / 180
 
+
+"""
+  <TODOs>
+    1. Increase P0 / Decrease Q
+    2. Set Var(bias) = Var along each axis
+    3. Adapt acc measurement variance
+"""
 
 
 class OrientationFilter(ExtendedKalmanFilter):
@@ -33,11 +42,17 @@ class OrientationFilter(ExtendedKalmanFilter):
     q = quaternion_from_gravity(precalibration.gravity_vector)
 
     rotation = quaternion_to_matrix(q)
-    gravity_phone = matrix_multiply(rotation, GRAVITY_VECTOR)
-    acc_bias = matrix_minus(matrix_transpose([precalibration.gravity_vector]), gravity_phone) 
+    gravity = matrix_multiply(rotation, GRAVITY_VECTOR)
+    acc_bias = matrix_minus(matrix_transpose([precalibration.gravity_vector]), gravity) 
+    self.gravity = matrix_scale(gravity, matrix_column_magnitude(gravity))
+    self.tilt = acos(matrix_dot_product(gravity, [[0], [0], [1]]))
+    self.heading = atan2(self.gravity[1][0], self.gravity[0][0])
+    self.theta = 0.0
+    self.last_q = q
     
     rotation = quaternion_to_matrix(quaternion_inverse(q))
     magnetic_field = matrix_multiply(rotation, precalibration.magnetic_field)
+
     #self._magnetic_intensity = precalibration.magnetic_intensity
     
     state = matrix_transpose([q]) + acc_bias + magnetic_field
@@ -75,7 +90,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Likewise, the error in the magnetic field vector is its variance.
     for diag in range(7, 10):
       error[diag][diag] = precalibration.magnet_stats.variance[diag - 7]
-    #log("P0 =\n", error, "\n\n")
+    #log("P0 =\n", matrix_print(error), "\n\n")
 
     ExtendedKalmanFilter.__init__(self, state, error)
 
@@ -86,7 +101,16 @@ class OrientationFilter(ExtendedKalmanFilter):
     for diag in range(3):
       self._gyro_variance[diag][diag] = precalibration.gyro_stats.variance[diag]  
     self._acc_variance = precalibration.acc_stats.variance / (3 ** 0.5)
+    self._magnetic_field_variance = precalibration.magnet_stats.variance
+
+
     self._magnet_variance = precalibration.magnet_stats.variance
+    self._magnet_streams = [StatStream(), StatStream(), StatStream()]
+    for axis in range(3):
+      self._magnet_streams[axis].mean = self._state[7 + axis][0]
+      self._magnet_streams[axis].variance = self._magnet_variance[axis]
+      log('var[0] =', self._magnet_streams[axis].variance, '\n')
+      self._magnet_streams[axis].length = 10
 
     #self._window_length = int(NYQUIST_STEP_FREQ * precalibration.get_sample_rate())
     self._window_length = int(NYQUIST_STEP_FREQ * 100)
@@ -95,6 +119,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     self._window_sum = [self._window[0]]
     self._window_mean = matrix_transpose(self._state[7:])
     self._window_size = 1
+
      
 
   def _normalize(self):
@@ -124,43 +149,30 @@ class OrientationFilter(ExtendedKalmanFilter):
 
     # Right now the transition matrix only accounts
     # for the quaternion (orientation), so it is 4x4.
-    # However, the accelerometer and magnetometer biases
+    # However, the accelerometer bias and magnetic field
     # are also included in the state vector, so they must
     # also be accounted for in the transition matrix. Thus,
     # the transition matrix must be extended by a 6x6 (two
     # 3x3 matrices corresponding to the 3 axes of each bias) 
     # identity matrix. 
-
-    # Extra columns in quaternion portion of the transition
-    # matrix should all be zero.
-    for row in transition_matrix:
-      row.extend([0.0] * 6)
-
-    # Last six rows of transition matrix apply to biases.
-    last_six_rows = matrix_identity(6)
-    for identity_row in last_six_rows:
-      # First four columns are the quaternion portion,
-      # so they should all be zero in the biases portion.
-      bias_row = [0.0] * 4
-      bias_row.extend(identity_row)
-      transition_matrix.append(bias_row)
-
-    #log("transition =\n", transition_matrix, '\n\n')
-    return transition_matrix
+    return matrix_block_diag(transition_matrix, matrix_identity(6))
 
 
   
   # Override state transition to use magnetometer window variance
   def _compute_a_priori_state(self, transition_matrix):
     ExtendedKalmanFilter._compute_a_priori_state(self, transition_matrix)
-    self._normalize()
+    #self._normalize()
     #log("X- =\n", self._state, '\n\n')
 
 
   def _compute_a_priori_error(self, transition_matrix):
+    self._error[7][7] = self._magnetic_field_variance[0]
+    self._error[8][8] = self._magnetic_field_variance[1]
+    self._error[9][9] = self._magnetic_field_variance[2]
     ExtendedKalmanFilter._compute_a_priori_error(self, transition_matrix)
     #self._error = matrix_scale(self._error, 3.219905e-3)
-    #log("P- =\n", self._error, '\n\n')
+    #log("P- =\n", matrix_print(self._error), '\n\n')
 
 
   def _compute_process_covariance(self):
@@ -181,24 +193,20 @@ class OrientationFilter(ExtendedKalmanFilter):
     # Q is currently 4x4, but needs to be
     # 10x10 to include the accelerometer 
     # bias and magnetic field vectors.
-    zeros = [0.0] * 6
+    zeroes = [0.0] * 6
     for row in Q:
-      row.extend(zeros)
+      row.extend(zeroes)
 
-    last_six_rows = matrix_init(6, 10)
     # The acc bias is constant in the state
     # transition model, so its process error
-    # is zero. Hence, do nothing...
+    # is zero. 
+    # The magnetic field variance is updated
+    # from our moving average window, so it
+    # has no process error either.
+    last_six_rows = matrix_init(6, 10)
 
-    # The magnetic field vector transitions
-    # as a moving average, so its process 
-    # error is simply its variance.
-    for diag in range(7, 10):
-      # Since Q is added to the state error, the previous variance must be subtracted.
-      last_six_rows[diag - 4][diag] = self._magnet_variance[diag - 7] - self._error[diag][diag]
-    
     Q.extend(last_six_rows)
-    #log("Q =\n", Q, '\n\n')
+    #log("Q =\n", matrix_print(Q), '\n\n')
     return Q
 
     
@@ -293,7 +301,7 @@ class OrientationFilter(ExtendedKalmanFilter):
     bias_net = matrix_column_magnitude(self._state[4:7])
     
     # Is the phone only under the influence of gravity?
-    if abs(acc_net - bias_net - GRAVITY) <= self._acc_variance ** 0.5:
+    if abs(acc_net - bias_net - GRAVITY) <= 3 * self._acc_variance ** 0.5:
       # Trust accelerometer, use for orienting
       acc_covar = matrix_scale(matrix_identity(3), self._acc_variance)
 
@@ -301,17 +309,8 @@ class OrientationFilter(ExtendedKalmanFilter):
       # Don't rely on accelerometer
       acc_covar = matrix_copy(MAX_COVAR) 
     
-    magnet_covar = matrix_init(3, 3)
-    for diag in range(3):
-      magnet_covar[diag][diag] = self._magnet_variance[diag] 
-
-    zeros = [0.0, 0.0, 0.0]
-    for row in range(3):
-      acc_covar[row].extend(zeros)
-      magnet_covar[row] = zeros + magnet_covar[row]
-
-    R = acc_covar + magnet_covar
-    #log("R =\n", R, '\n\n')
+    R = matrix_block_diag(acc_covar, matrix_diag(self._magnet_variance))
+    #log("R =\n", matrix_print(R), '\n\n')
     #return R
     return matrix_scale(matrix_identity(6), 9223372036854775807)
 
@@ -339,9 +338,12 @@ class OrientationFilter(ExtendedKalmanFilter):
       var_sum = matrix_add(var_sum, square_diff)
     self._window[0] = magnet[0] 
 
-    self._magnet_variance = matrix_scale(var_sum, 1.0 / self._window_size)[0]
+    self._magnetic_field_variance = matrix_scale(var_sum, 1.0 / self._window_size)[0]
+
+    for axis in range(3):
+      self._magnet_variance[axis] = self._magnet_streams[axis].update(magnet[0][axis]).variance
     #log("Var(B) =\n", self._magnet_variance, '\n\n')
- 
+     
 
 
   def get_orientation(self, sensor_data):
@@ -370,14 +372,14 @@ class OrientationFilter(ExtendedKalmanFilter):
     gyro_vector = [[sensor_data['pitch']], [sensor_data['roll']], [sensor_data['yaw']]]
     self._acc = [sensor_data['xforce'], sensor_data['yforce'], sensor_data['zforce']]
     self._magnet = [sensor_data['xmag'], sensor_data['ymag'], sensor_data['zmag']]
-    measurements = matrix_transpose([self._acc + self._magnet])
-
-    # Recompute variance for new external bias
-    self._compute_magnetometer_variance()
+    self.measurements = matrix_transpose([self._acc + self._magnet])
+    self.gyro = gyro_vector
 
     # run Kalman filter
-    self._update(gyro_vector, measurements, sensor_data['time'])
+    self._update(gyro_vector, self.measurements, sensor_data['time'])
     self._error[7:] = matrix_init(3, 10)
+    # Recompute variance for new external bias
+    self._compute_magnetometer_variance()
 
     self._normalize()  
     q = self._get_quaternion()
@@ -388,22 +390,62 @@ class OrientationFilter(ExtendedKalmanFilter):
     rotation = quaternion_to_matrix(quaternion_inverse(q))
     self._state[7:] = matrix_multiply(rotation, matrix_transpose([self._magnet]))
     #log("X =\n", self._state, '\n\n')
-    #log("P =\n", self._error, '\n\n=======================================================================\n\n')
-
-
+    #log("P =\n", matrix_print(self._error), '\n\n=======================================================================\n\n')
     return q 
 
 
 
   def get_heading(self, sensor_data):
-    q = self.get_orientation(sensor_data)
     """
-    acc_world = matrix_multiply(rotation, matrix_minus(measurements[:3], self._state[4:7])) 
-    linear_acc = matrix_minus(acc_world, GRAVITY_VECTOR) 
+    q = self.get_orientation(sensor_data)
+    rotation = quaternion_to_matrix(quaternion_inverse(q))
+    acc_world = matrix_multiply(rotation, matrix_minus(self.measurements[:3], self._state[4:7])) 
+    linear_acc = matrix_minus(acc_world, GRAVITY_VECTOR)
     theta = atan2(linear_acc[1][0], linear_acc[0][0])
     return theta
-    """
-    heading = matrix_multiply(quaternion_to_matrix(q), [[1], [0], [0]])
-    return atan2(heading[1][0], heading[0][0])
 
+    q = self.get_orientation(sensor_data)
+    rotation = quaternion_to_matrix(q)
+
+    gravity = matrix_multiply(rotation, [[0], [0], [1]])
+    tilt = acos(matrix_dot_product(gravity, [[0], [0], [1]]))
+    heading = atan2(gravity[1][0], gravity[0][0])
+
+    if tilt > ONEDEGREE or self.tilt > ONEDEGREE:
+      heading_diff = heading - self.heading
+    else:
+
+    xaxis = matrix_multiply(rotation, [[1], [0], [0]])
+    last_xaxis = matrix_multiply(quaternion_to_matrix(self.last_q), [[1], [0], [0]]) 
+    if gravity[2][0] < 0:
+      xaxis[0][0] *= -1
+    if self.gravity[2][0] < 0:
+      last_xaxis[0][0] *= -1
+    heading_diff = atan2(xaxis[1][0], xaxis[0][0]) - atan2(last_xaxis[1][0], last_xaxis[0][0])
+    
+
+    self.theta += heading_diff
+    self.tilt = tilt
+    self.gravity = gravity
+    self.heading = heading
+    self.last_q = q
+
+    return self.theta
+    q = self.get_orientation(sensor_data)
+    heading = matrix_multiply(quaternion_to_matrix(quaternion_inverse(q)), self.gyro) 
+    return atan2(heading[1][0], heading[0][0])
+    """
+    q = self.get_orientation(sensor_data) 
+    gimbal = q[0] * q[1] + q[2] * q[3]
+    
+    if gimbal > 0.499:
+      yaw = 2 * atan2(q[0], q[3])
+
+    elif gimbal < -0.499:
+      yaw = -2 * atan2(q[0], q[3])
+
+    else:
+      yaw = atan2(2 * gimbal, 1 - 2 * (q[1] * q[1] + q[2] * q[2]))
+
+    return yaw
 # -*- mode: python;-*-
