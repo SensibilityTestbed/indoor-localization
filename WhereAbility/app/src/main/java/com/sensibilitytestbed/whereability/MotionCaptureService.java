@@ -23,28 +23,58 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.IBinder;
+import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class MotionCaptureService extends Service implements SensorEventListener{
 
-    private long deviceID;
+    private int deviceID;
     private SensorManager mSensorManager;
     private BackhaulService mBackhaulService;
     private ServiceConnection mBackhaulConnection;
+    private boolean bound = false, connecting = false;
+    private Lock lock = new ReentrantLock();
+    private Condition notBound = lock.newCondition();
     private JSONObject entry;
+    private Queue<JSONObject> queue = new LinkedList<JSONObject>();
 
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
-        // Load the user's unique ID
-        SharedPreferences setupPrefs = getSharedPreferences(MainActivity.SETUP, MODE_PRIVATE);
-        deviceID = setupPrefs.getLong(MainActivity.DEVICE_ID, -1);
+        /****************  Start backhauling in a background service.  **************************/
 
+        // Android requires a connection to bind to the backhauling service to communicate.
+        mBackhaulConnection = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                // Get a reference to the backhauling service to communicate with it.
+                BackhaulService.BackhaulBinder binder = (BackhaulService.BackhaulBinder) service;
+                mBackhaulService = binder.getService();
+                Log.d("MOCAP", "connected");
+                bound = true;
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                bound = false;
+            }
+        };
+        Intent backhaulIntent = new Intent(this, BackhaulService.class);
+        bindService(backhaulIntent, mBackhaulConnection, Context.BIND_AUTO_CREATE);
+
+        // Load the user's randomized ID
+        SharedPreferences setupPrefs = getSharedPreferences(MainActivity.SETUP, MODE_PRIVATE);
+        deviceID = setupPrefs.getInt(MainActivity.DEVICE_ID, -1);
 
 
         /****************  Start listening for sensor events.  *****************************/
@@ -57,26 +87,10 @@ public class MotionCaptureService extends Service implements SensorEventListener
         mSensorManager.registerListener(this, gyroscope, 5000);
         mSensorManager.registerListener(this, magnetometer, 5000);
 
-
-
-        /****************  Start backhauling in a background service.  **************************/
-
-        // Android requires a connection to bind to the backhauling service to communicate.
-        mBackhaulConnection = new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-                // Get a reference to the backhauling service to communicate with it.
-                BackhaulService.BackhaulBinder binder = (BackhaulService.BackhaulBinder) service;
-                mBackhaulService = binder.getService();
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-
-            }
-        };
-        Intent backhaulIntent = new Intent(this, BackhaulService.class);
-        bindService(backhaulIntent, mBackhaulConnection, Context.BIND_AUTO_CREATE);
+        entry = new JSONObject();
+        try {
+            entry.put("time", 0);
+        } catch (JSONException e) {}
 
 
 
@@ -123,21 +137,17 @@ public class MotionCaptureService extends Service implements SensorEventListener
     @Override
     public void onSensorChanged(SensorEvent event) {
         try {
+
+            if (event.timestamp != entry.getLong("time")) {
+                if (entry.getLong("time") != 0)
+                    queue.add(entry);
+                entry = new JSONObject();
+                entry.put("time", event.timestamp);
+                entry.put("deviceID", deviceID);
+            }
+
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_ACCELEROMETER:
-                    /*
-                        Because the sensors were registered at the
-                        same time, with the same polling rate, they
-                        all have the same timestamp.
-                        But the accelerometer goes through the pipeline
-                        first, so we'll save its timestamp now, along
-                        with the deviceID.
-                     */
-                    double time = event.timestamp;
-                    entry = new JSONObject();
-                    entry.put("time", time);
-                    entry.put("deviceID", deviceID);
-
                     entry.put("ax", event.values[0]);
                     entry.put("ay", event.values[1]);
                     entry.put("az", event.values[2]);
@@ -151,14 +161,18 @@ public class MotionCaptureService extends Service implements SensorEventListener
                     entry.put("mx", event.values[0]);
                     entry.put("my", event.values[1]);
                     entry.put("mz", event.values[2]);
-
-                    // Magnetometer comes last,
-                    // so backhaul this data entry.
-                    mBackhaulService.put(entry);
                     break;
             }
-        } catch (JSONException e) {
-            // Shouldn't get a JSON exception if Android does it's job...
+
+            if (bound) {
+                Log.d("MOCAP", "" + queue.size());
+                while (!queue.isEmpty())
+                    mBackhaulService.put(queue.remove());
+            }
+
+        } catch (Exception e) {
+
         }
+
     }
 }
