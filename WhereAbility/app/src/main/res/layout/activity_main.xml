@@ -12,7 +12,7 @@
     <Switch
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="ON"
+        android:text="OFF"
         android:id="@+id/switch1"
         android:checked="true"
         android:layout_marginBottom="108dp"
@@ -22,7 +22,7 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Check in"
+        android:text="Scan QR Code"
         android:id="@+id/checkin"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
