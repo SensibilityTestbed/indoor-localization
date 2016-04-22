@@ -11,45 +11,44 @@
 package com.sensibilitytestbed.whereability;
 
 
-import android.content.ComponentName;
+
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.os.IBinder;
-import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+
 
 import java.util.Random;
+
 
 
 public class SetupActivity extends AppCompatActivity{
 
     public static final float CM_TO_FT = 0.0328084f;
+    public static final float ROUNDS_T0_FOOT = 11.5f / 12;
 
     private SharedPreferences setupPrefs;
     private Button button;
     private EditText cmInput, ftInput, inInput;
     private float height = 175;
     private boolean isMetric = false;
-    private BackhaulService mBackhaulService;
-    private ServiceConnection mBackhaulConnection;
+
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setup);
+
 
 
         /**************** Load the most recently saved height ********************/
@@ -65,15 +64,24 @@ public class SetupActivity extends AppCompatActivity{
         /******** Fill the TextViews with the height ***********/
 
         cmInput = (EditText) findViewById(R.id.cmInput);
+        ftInput = (EditText) findViewById(R.id.ftInput);
+        inInput = (EditText) findViewById(R.id.inInput);
+
         cmInput.setText("" + Math.round(height));
 
         float ft = height * CM_TO_FT;
+        int ftInt = (int) ft;
 
-        ftInput = (EditText) findViewById(R.id.ftInput);
-        ftInput.setText("" + ((int) ft));
+        if (ft - ftInt >= ROUNDS_T0_FOOT) {
+            ftInput.setText("" + (ftInt + 1));
+            inInput.setText("0");
+        }
+        else {
+            ftInput.setText("" + ftInt);
+            inInput.setText("" + Math.round((ft - ftInt) * 12));
+        }
 
-        inInput = (EditText) findViewById(R.id.inInput);
-        inInput.setText("" + Math.round((ft - (int) ft) * 12));
+
 
 
 
@@ -110,9 +118,15 @@ public class SetupActivity extends AppCompatActivity{
                     // Convert the metric height to English system
                     height = Float.parseFloat(s.toString());
                     float ft = height * CM_TO_FT;
-                    ftInput.setText("" + ((int) ft));
-                    int in = Math.min(Math.round((ft - (int) ft) * 12), 11);
-                    inInput.setText("" + in);
+                    int ftInt = (int) ft;
+                    if (ft - ftInt >= ROUNDS_T0_FOOT) {
+                        ftInput.setText("" + (ftInt + 1));
+                        inInput.setText("0");
+                    }
+                    else {
+                        ftInput.setText("" + ftInt);
+                        inInput.setText("" + Math.round((ft - ftInt) * 12));
+                    }
                 } catch (Exception e) {
                     // The input is currently the null string
                 }
@@ -169,20 +183,7 @@ public class SetupActivity extends AppCompatActivity{
 
         /********  Android requires a connection to bind to the backhauling service to communicate.  ********/
 
-        mBackhaulConnection = new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-                // Get a reference to the backhauling service to communicate with it.
-                BackhaulService.BackhaulBinder binder = (BackhaulService.BackhaulBinder) service;
-                mBackhaulService = binder.getService();
 
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-
-            }
-        };
 
 
 
@@ -200,28 +201,21 @@ public class SetupActivity extends AppCompatActivity{
                     // The user is new, so save the new height with a new device ID
                     SharedPreferences.Editor prefsEditor = setupPrefs.edit();
                     prefsEditor.putFloat(MainActivity.HEIGHT, height);
-                    long deviceID = new Random().nextLong() & 0xffffffffL;
-                    prefsEditor.putLong(MainActivity.DEVICE_ID, deviceID);
+                    prefsEditor.putBoolean(MainActivity.HEIGHT_SENT, false);
+                    int deviceID = Math.abs(new Random().nextInt());
+                    prefsEditor.putInt(MainActivity.DEVICE_ID, deviceID);
                     prefsEditor.commit();
 
-                    // Send the new user's information to the server via the dedicated backhaul service.
-                    bindService(new Intent(context, BackhaulService.class), mBackhaulConnection, Context.BIND_AUTO_CREATE);
-                    try {
-                        JSONObject entry = new JSONObject();
-                        entry.put("time", SystemClock.elapsedRealtime() * 1e6).put("deviceID", deviceID).put("height", height);
-                        mBackhaulService.put(entry);
-                    } catch (JSONException e) {
-                        // No JSON exceptions will occur if the QR code is correct...
-                    }
-                    // Only need to send this one thing
-                    unbindService(mBackhaulConnection);
                 }
 
                 // Finally, continue.
                 Intent intent = new Intent(context, MainActivity.class);
                 startActivity(intent);
+
             }
         });
+
+        Log.d("MYSETUP", "created");
     }
 
 
