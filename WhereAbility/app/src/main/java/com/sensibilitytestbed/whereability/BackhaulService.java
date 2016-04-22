@@ -17,6 +17,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -36,7 +37,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class BackhaulService extends Service {
 
-    public static final int BATCH_SIZE = 100;
+    public static final int BATCH_SIZE = 500;
 
     private BlockingQueue queue = new LinkedBlockingQueue();
     private BackhaulBinder mBinder = new BackhaulBinder();
@@ -49,6 +50,9 @@ public class BackhaulService extends Service {
 
     @Override
     public void onCreate() {
+        super.onCreate();
+
+        Log.d("SERVER", "We have a backhauling service!");
 
         mConnectivityManager = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
         mActiveNetwork = mConnectivityManager.getActiveNetworkInfo();
@@ -63,6 +67,8 @@ public class BackhaulService extends Service {
                 // and the buffer is empty.
                 while (started || !queue.isEmpty()) {
 
+                    Log.d("SERVER", "backhauling...");
+
                     lock.lock();
                     try {
                         // Wait until there's a full batch or the
@@ -76,6 +82,7 @@ public class BackhaulService extends Service {
                     }
 
 
+                    Log.d("SERVER", "q size:" + queue.size());
 
                     // Consume the next batch of entries (i.e. measurements).
                     while (batch.length() < BATCH_SIZE && !queue.isEmpty())
@@ -83,7 +90,9 @@ public class BackhaulService extends Service {
                             batch.put(queue.take());
                         } catch (InterruptedException e) { }
 
+                    Log.d("SERVER", "flushed: " + batch.length());
 
+                    Log.d("SERVER", "q size:" + queue.size());
 
                     // Sleep until there's Internet connectivity.
                     while (mActiveNetwork == null || !mActiveNetwork.isConnectedOrConnecting()) {
@@ -94,13 +103,13 @@ public class BackhaulService extends Service {
                         } catch (InterruptedException e) { }
                     }
 
-
+                    Log.d("SERVER", "got WiFi");
 
                     // Send the batch to the server
                     try {
                         // Connect to sensevis
-                        String body = "user=Sensibility&exp=Indoor%20Localization&set=test&entries=" + batch.toString();
-                        URL url = new URL("http://sensevis.poly.edu:8000/backhaul");
+                        String body = "user=Sensibility&exp=Indoor%20Localization&set=sas16&entries=" + batch.toString();
+                        URL url = new URL("http://sensevis.poly.edu/backhaul");
                         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
                         // Declare message as POST
@@ -114,14 +123,28 @@ public class BackhaulService extends Service {
                         ostream.write(body.getBytes());
                         ostream.flush();
 
+                        // Did the message go through?
+                        if (conn.getResponseCode() > 299) {
+                            Log.d("SERVER", "bad request");
+                            replace(batch);
+                        }
+                        else {
+                            Log.d("SERVER", "" + conn.getResponseCode());
+                        }
+
                         conn.disconnect();
 
                     } catch (IOException e) {
                         // Lost connection to the server.
                         // Try again in next go around.
+                        Log.d("SERVER", "lost connection");
+                        replace(batch);
+                        Log.d("SERVER", "q size:" + queue.size());
                     }
+                    batch = new JSONArray();
                 }
 
+                Log.d("SERVER", "backhaul done");
 
                 // Finished backhauling, so signal
                 // that it's okay to destroy the service.
@@ -132,6 +155,8 @@ public class BackhaulService extends Service {
                 } finally {
                     doneLock.unlock();
                 }
+
+                Log.d("SERVER", "signaled");
 
             }
         }).start();
@@ -158,6 +183,8 @@ public class BackhaulService extends Service {
     // Interface for other activities to backhaul data
     public void put(JSONObject entry) {
         try {
+            if (queue.size() > 600000)
+                return;
             queue.put(entry);
         } catch (InterruptedException e) {
           // Move on (toss entry) even if we failed to insert it,
@@ -178,21 +205,47 @@ public class BackhaulService extends Service {
 
 
 
+    private void replace(JSONArray array) {
+        try {
+            for (int i=0; i < array.length(); i++)
+                queue.put(array.get(i));
+        } catch (Exception e) {
+
+        }
+    }
+
+
+
 
     @Override
     public void onDestroy() {
-        started = false;
+        Log.d("SERVER", "destroy service");
+
+        lock.lock();
+        try {
+            // Tell the backhauling
+            // thread to finish up.
+            started = false;
+            notFull.signal();
+        } finally {
+            lock.unlock();
+        }
+
+        Log.d("SERVER", "stopped");
 
         // Don't let the service die until the
         // buffer has been completely backhauled.
         doneLock.lock();
         try {
-            if (!done)
+            while (!done)
                 notDone.await();
         } catch (InterruptedException e) {
 
         } finally {
             doneLock.unlock();
         }
+
+        Log.d("SERVER", "finished");
+        super.onDestroy();
     }
 }
