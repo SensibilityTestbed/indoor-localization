@@ -9,6 +9,9 @@
 clear all;
 close all;
 
+
+
+
 %% File loading
 % I tried to write them in a function file, but it only can read last
 % element, I didn't solve the problem
@@ -22,8 +25,11 @@ DTW_threshold = 100; % DTW coeefficient > 100 = irrelevant
 % File load, I will keep trying to write them in a function
 filename = 'sony_trousers_hand_mv1.csv'; % experiment file
 filename1 = 'kalman_new.csv'; % Kalman output file
-filenameRT = 't2.csv'; % DTW trousers reference file
+filenameRT = 'sony_trousers.csv'; % DTW trousers reference file
 filenameRH = 'sony_hand.csv'; % DTW hand reference file
+
+
+
 
 
 %% Raw data processing
@@ -87,6 +93,10 @@ gyro = sqrt(gx.^2+gy.^2+gz.^2);
 Fs = length(time) / (time(length(time)) - time(1));
 
 
+
+
+
+
 %% Low pass filter Filter
 % All experiment data and reference data go through the same
 % lowpass fileter
@@ -115,6 +125,10 @@ filteredk_theta = filtfilt(b,a,k_theta); % LPF output of kalman filter output
 
 LPFGyro = filtfilt(b,a,gyro); % LPF output raw gyroscope data
 
+
+
+
+
 %% Moving average filter
 % Experiment data also go throught the moving average filter
 % Window size settup as 4
@@ -135,6 +149,11 @@ filteredMagNoG = filter(b, a, LPFmag);
 filteredMagNoGRT = filter(b,a,LPFmagRT);
 filteredMagNoGRH = filter(b,a,LPFmagRH);
 
+
+
+
+
+
 %% Dynamic Time Warping
 % Repeated compare the experiment data with reference data with samle
 % length, and save in two list
@@ -145,7 +164,7 @@ DistListH = [];
 % get DTW coefficients
 % for example, the length of experiment data is 2600, and Dsize = 500, 
 % then the for loop will run 5 times, cover 1-2500 samples 
-for i = 1: (floor(length(magNoG)/Dsize)) % 
+for i = 1: (floor(length(magNoG)/Dsize)) 
     DT=dtw(filteredMagNoG(((i-1)*Dsize+1) : i*Dsize), filteredMagNoGRT);
     DH=dtw(filteredMagNoG(((i-1)*Dsize+1) : i*Dsize), filteredMagNoGRH);
     DistListT = [DistListT, DT];
@@ -158,6 +177,10 @@ DT=dtw(filteredMagNoG((floor(length(magNoG)/Dsize))*Dsize+1 : length(magNoG)), f
 DH=dtw(filteredMagNoG((floor(length(magNoG)/Dsize))*Dsize+1 : length(magNoG)), filteredMagNoGRH);
 DistListT = [DistListT, DT];
 DistListH = [DistListH, DH];
+
+
+
+
 
 
 %% Carrying method detection by Gravity detection
@@ -182,6 +205,11 @@ end
 %}
 
 
+
+
+
+
+
 %% RAW Gyro data processing
 
 % From DTW coefficient, choose different Gyro axis data
@@ -202,6 +230,11 @@ end
 % heading from Gyro is equal to integer of raw Gyro data
 % setup head in 2pi
 head = mod((0 + cumtrapz(time,head)), 2*pi);
+
+
+
+
+
 
 
 %% Raw magnetomer data processing
@@ -244,6 +277,10 @@ for i = 1:length(time)
         end
     end
 end
+
+
+
+
 
 
 %% Kalman estimate
@@ -293,6 +330,11 @@ end
 heading = x1;
 
 
+
+
+
+
+
 %% heading from Kalman estimation and raw gryoscope data
 % heading = interger of raw gyro scope
 
@@ -303,7 +345,7 @@ ThetaMag = mod(sqrt((0 + cumtrapz(time,LPFGx)).^2 + (0 + cumtrapz(time,LPFGy)).^
 % get heading from gyroscope's magnititude
 
 
-gyroX = mod(ThetaGx, 2*pi) * 180/pi;
+gyroX = mod(ThetaGx, 2*pi) * 180/pi; % to degree
 gyroY = mod(ThetaGy, 2*pi) * 180/pi;
 gyroZ = mod(ThetaGz, 2*pi) * 180/pi;
 
@@ -311,18 +353,22 @@ thetaGyro = heading;
 
 DTWMagNoG = [];
 for i = 1:length(filteredMagNoG)
-    if DistListT(floor(i/Dsize)+1)<DTW_threshold || DistListH(floor(i/Dsize)+1)<DTW_threshold
-        DTWMagNoG = [DTWMagNoG, filteredMagNoG(i)];
+    if DistListT(floor(i/Dsize)+1)<DTW_threshold || DistListH(floor(i/Dsize)+1)<DTW_threshold % if motion is relevant
+        DTWMagNoG = [DTWMagNoG, filteredMagNoG(i)]; % using filtered acceleration magnititude
     else
-        DTWMagNoG = [DTWMagNoG, 0];
+        DTWMagNoG = [DTWMagNoG, 0]; % else settup as "no change"
     end
 end
 
 DTWMagNoG = DTWMagNoG.'
 
-%{
-%% PCA heading
 
+
+
+
+
+%% PCA heading (not use in this script)
+%{
 
 pcaS = []
 windowSize = 6028;
@@ -348,29 +394,39 @@ data1 = [gx(i*windowSize+1 : length(LPFGx)) gy(i*windowSize+1 : length(LPFGx)) g
 pcaSS = [pcaS; SCORES(:,2)];
 PCA_angle = mod((0 + cumtrapz(time,pcaSS)), 2*pi)+pi;
 %}
+
+
+
+
+
+
+
 %% Zero Crossing Method
+% Zero crossing method actually work as threshold crossing. each time Filtered
+% Non-gravity acceleration cross the threshold, and the time interval from
+% last crossing zero is larger than minimum step interval, count as a step
 
 n = length(DTWMagNoG);
 ind = 1:(n-1);
 
-%minPeakHeight = std(filteredMagNoG);
-minPeakHeight = 0.1;
+%minPeakHeight = std(filteredMagNoG); % 
+minPeakHeight = 0.1; % threshold to avoid noise
 
-y = DTWMagNoG > minPeakHeight;
+y = DTWMagNoG > minPeakHeight; % construsting a dataset for only > threshold value
 
-k = find((y(ind)<=0) & (y(ind+1)>0)) ;
+k = find((y(ind)<=0) & (y(ind+1)>0)) ; % find all points with new constructed dataset with last point = 0 and next point > 0
 
 xc = [];
 
-L = (y(k)==0) & (y(k+1)==0);
+L = (y(k)==0) & (y(k+1)==0); % find all dataset smaller than threshold value
 if any(L) 
-xc = time(k(L));
-k(L)=[];
+    xc = time(k(L));
+    k(L)=[];
 end
 
 if ~isempty(k)
-s = (y(k+1)-y(k))./(time(k+1)-time(k));
-xc = [xc,time(k) - y(k)./s];
+    s = (y(k+1)-y(k))./(time(k+1)-time(k));
+    xc = [xc,time(k) - y(k)./s];
 end
 
 numStepsZ = length(xc);
@@ -388,17 +444,25 @@ numStepsZ = length(xc);
 
 
 
+
+
+
+
 %% Peak Method Without Filtering
+% For peak searching, using Matlab peak searching function to get the peaks
+% which are above the threshold(noise level), and decrease those peaks'
+% time interval is less than the minimum steps interval.
 
 %minPeakHeight = std(magNoG);
-minPeakHeight = 0.1;
+minPeakHeight = 0.1; % noise level threshold
 
-[pkstemp, locstemp] = findpeaks(DTWMagNoG, 'MINPEAKHEIGHT', minPeakHeight);
+[pkstemp, locstemp] = findpeaks(DTWMagNoG, 'MINPEAKHEIGHT', minPeakHeight); % pkstemp get the peak value, and locstemp get location
 
 numStepsP = numel(pkstemp);
 locs = [locstemp(1)];
 pks = [pkstemp(1)]
 
+% delete the points whose internal is less than minimum step interval
 for i = 2:numStepsP
     if time(locstemp(i)) - time(locstemp(i-1)) >= 0.25
         locs = [locs, locstemp(i)];
@@ -408,18 +472,31 @@ end
 numStepsP = length(locs);
 
 
-%% Indoor localization by Gyro Intergration
 
-stride = HEIGHT * 0.43
-fZ = numStepsZ / (time(k(numStepsZ))-time(k(1)));
-fP = numStepsP / (time(locs(numStepsP))-time(locs(1)));
 
-%strideZ = HEIGHT * 0.43 + 0.16 * fZ - 0.32;
-%strideP = HEIGHT * 0.43 + 0.14 * fP - 0.28;
-
+%% Stride estimation
+stride = HEIGHT * 0.43 % average stride estimation
 strideZ = HEIGHT * 0.43;
 strideP = HEIGHT * 0.43;
 
+fZ = numStepsZ / (time(k(numStepsZ))-time(k(1))); % zero crossing stride frequency
+fP = numStepsP / (time(locs(numStepsP))-time(locs(1))); % peak searching stride frequency
+
+%strideZ = HEIGHT * 0.43 + 0.16 * fZ - 0.32; % dynamic stride estimation by
+%experiment curve
+%strideP = HEIGHT * 0.43 + 0.14 * fP - 0.28;
+
+
+
+
+%% Indoor localization by Gyro Intergration
+% by using intergrated gyroscope to get heading
+% current position = last position + estimated stride * heading
+% x = last x + estimated stride * cos(heading)
+% y = last y + estimated stride * sin(heading)
+
+
+% crossing-zero X integrated gyro heading
 positionX = [0];
 positionY = [0];
 
@@ -435,8 +512,11 @@ for i = 2:numStepsZ
 end
 
 
-positionX1 = [-1.21];
-positionY1 = [0.8636];
+% Peak-searching X integrated gyro heading
+positionX1 = [0];
+positionY1 = [0];
+%positionX1 = [-1.21]; % specical start point for lab experiment
+%positionY1 = [0.8636]; % both should be zero in general
 
 for i = 2:numStepsP
     lastx = positionX1(length(positionX1));
@@ -450,14 +530,23 @@ for i = 2:numStepsP
 end
 
 
-%% Indoor localization by Kalman output
 
+
+
+
+%% Indoor localization by Kalman output
+% each localizatoin posistoin = last position + step stride * heading
+% in detail:
+% location x = last location x + cos(heading) * estimated stride
+% location y = last location y + sin(heading) * estimated stride
 
 KalmanPosX = [0];
 KalmanPosY = [0];
 
 headingk = [];
 
+% DTW detects the device carring methods, if the device in trousers,
+% heading + pi
 for i = 1:length(k_theta)
     itr = floor(i/Dsize)+1;
     if DistListT(itr) < DistListH(itr) && DistListT(itr) < DTW_threshold
@@ -465,13 +554,16 @@ for i = 1:length(k_theta)
     elseif DistListH(itr) < DistListT(itr) && DistListH(itr) < DTW_threshold
         headingk = [headingk, k_theta(i)];
     else
-        headingk = [headingk, 0];
+        headingk = [headingk, 0]; 
     end
 end
 
 
 costheta = cos(headingk);
 sintheta = sin(headingk);
+
+% location x = last location x + cos(heading) * estimated stride
+% location y = last location y + sin(heading) * estimated stride
 for i = 2:numStepsP
     lastx = KalmanPosX(length(KalmanPosX));
     lasty = KalmanPosY(length(KalmanPosY));
@@ -488,9 +580,15 @@ for i = 2:numStepsP
     KalmanPosY = [KalmanPosY lasty+dKalmanPosY];
     
 end
-%{
-%% PCA localization
 
+
+
+
+
+
+
+%% PCA localization
+%{
 positionXpca = [-1.21];
 positionYpca = [0.8636];
 
@@ -506,7 +604,12 @@ for i = 2:numStepsP
 end
 %}
 
-%% kalman estimation
+
+
+
+
+
+%% kalman estimation output
 %{
 perfectStep = round(20.8/stride)+1;
 
@@ -555,24 +658,33 @@ else
 end
   %}  
 
+
+
+
+
+
+
 %% Figure
-figure
+
+% figure 1 upper side plot shows Raw acceleration 3-axis data from experiment vs time 
+figure;
 subplot(2,1,1)
-plot(count, ax)
+plot(count, ax) % x-axis shows in blue
 hold on
-plot(count,ay, 'r')
-plot(count,az, 'g')
+plot(count,ay, 'r') % y-axis shows in red
+plot(count,az, 'g') % z-axis shows in green
 title('Acceleration Magnitude acceleration over time')
 xlabel('time/seconds')
 ylabel('m/s^2')
 legend('X-axis', 'Y-axis', 'Z-axis' );
 hold off
 
+% figure 1 downside plot shows Filtered(LPF+MAF) acceleration 3-axis data from experiment vs time
 subplot(2,1,2)
-plot(time, filteredAx)
+plot(time, filteredAx) % x-axis shows in blue
 hold on
-plot(time,filteredAy, 'r')
-plot(time,filteredAz, 'g')
+plot(time,filteredAy, 'r') % y-axis shows in red
+plot(time,filteredAz, 'g') % z-axis shows in green
 title('Filtered Acceleration Magnitude acceleration over time')
 xlabel('time/seconds')
 ylabel('m/s^2')
@@ -581,23 +693,27 @@ hold off
 
 saveas(gcf,'figure1.png')
 
+
+
+% figure 2 upside plot shows Raw gyroscope 3-axis data from experiment vs time
 figure
 subplot(2,1,1)
-plot(time, gx)
+plot(time, gx) % x-axis shows in blue
 hold on
-plot(time,gy, 'r')
-plot(time,gz, 'g')
+plot(time,gy, 'r') % y-axis shows in red
+plot(time,gz, 'g') % z-axis shows in greed
 title('Gyro Magnitude over time')
 xlabel('time/seconds')
 ylabel('rad/s')
 legend('X-axis', 'Y-axis', 'Z-axis' );
 hold off
 
+% figure 2 downside plot shows Filtered(LPF) gyroscope 3-axis data from experiment vs time
 subplot(2,1,2)
-plot(time, LPFGx)
+plot(time, LPFGx) % x-axis shows in blue
 hold on
-plot(time,LPFGy, 'r')
-plot(time,LPFGz, 'g')
+plot(time,LPFGy, 'r') % y-axis shows in red
+plot(time,LPFGz, 'g') % z-axis shows in green
 title('Filtered Gyro Magnitude over time')
 xlabel('time/seconds')
 ylabel('rad/s')
@@ -606,24 +722,27 @@ hold off
 
 saveas(gcf,'figure2.png')
 
+
+
+% figure 3 upside plot shows Raw magenetomer 3-axis data from experiment vs time
 figure
 subplot(2,1,1)
-plot(time, mx)
+plot(time, mx) % x-axis shows in blue
 hold on
-plot(time,my, 'r')
-plot(time,mz, 'g')
+plot(time,my, 'r') % x-axis shows in red
+plot(time,mz, 'g') % x-axis shows in green
 title('Magnetic field Magnitude over time')
 xlabel('time/seconds')
 ylabel('micro tesla')
 legend('X-axis', 'Y-axis', 'Z-axis' );
 hold off
 
-
+% figure 3 downside plot shows Filtered(LPF+MAF) magenetomer 3-axis data from experiment vs time
 subplot(2,1,2)
-plot(time, filteredMx)
+plot(time, filteredMx) % x-axis shows in blue
 hold on
-plot(time,filteredMy, 'r')
-plot(time,filteredMz, 'g')
+plot(time,filteredMy, 'r') % y-axis shows in red
+plot(time,filteredMz, 'g') % z-axis shows in green
 title('Filtered Magnetic field Magnitude over time')
 xlabel('time/seconds')
 ylabel('micro tesla')
@@ -633,24 +752,27 @@ hold off
 saveas(gcf,'figure3.png')
 
 
+
+% figure 4 upside plot shows Intergrated Gyroscope 3-axis data in radians from experiment vs time
 figure
 
 subplot(2,1,1)
-plot(time, ThetaGx)
+plot(time, ThetaGx) % x-axis intergration shows in blue
 hold on
-plot(time,ThetaGy, 'r')
-plot(time,ThetaGz, 'g')
+plot(time,ThetaGy, 'r')  % y-axis intergration shows in red
+plot(time,ThetaGz, 'g')  % z-axis intergration shows in green
 title('Intergraled filtered Gyro Magnitude over time in radians')
 xlabel('time/seconds')
 ylabel('radians')
 legend('X-axis', 'Y-axis', 'Z-axis' );
 hold off
 
+% figure 4 downside plot shows Intergrated Gyroscope 3-axis data in degree from experiment vs time
 subplot(2,1,2)
-plot(time, gyroX)
+plot(time, gyroX) % x-axis intergration shows in blue
 hold on
-plot(time,gyroY, 'r')
-plot(time,gyroZ, 'g')
+plot(time,gyroY, 'r') % y-axis intergration shows in red
+plot(time,gyroZ, 'g') % z-axis intergration shows in greed
 title('Intergraled filtered Gyro Magnitude over time in angle')
 xlabel('time/seconds')
 ylabel('angle')
@@ -661,12 +783,12 @@ saveas(gcf,'figure4.png')
 
 
 
-
+% figure 5 upside plot shows steps detection by zero-crossing vs time
 figure
 subplot(2,1,1)
-plot(time, filteredMagNoG)
+plot(time, filteredMagNoG) % Filtered(LPF+MAF) magnititude of non-gravity acceleration data
 hold on
-plot(xc, zeros(length(xc)), 'r', 'Marker', 'x', 'LineStyle', 'none');
+plot(xc, zeros(length(xc)), 'r', 'Marker', 'x', 'LineStyle', 'none'); % Step detection point by zero-crossing method
 strNum = num2str(numStepsZ);
 title('Non-Gavity Magnitude of accleration over time with Zero Crossing detection')
 xlabel('time/seconds')
@@ -674,12 +796,14 @@ ylabel('m/s^2')
 legend('Non-Gravity Magnitude of Acceleration', ['step counts by Crossing Zero: ' strNum], 'location','northoutside')
 hold off
 
+
+% figure 5 downside plot shows steps detection by peak-searching vs time
 subplot(2,1,2)
-plot(time, filteredMagNoG)
+plot(time, filteredMagNoG) % Filtered(LPF+MAF) magnititude of non-gravity acceleration data
 hold on
 %plot(time(zeroCrossingIndex), zeros, 'b', 'Marker', 'v', 'LineStyle', 'none');
 %plot(time(zeroCrossingNIndex), zerosN, 'b', 'Marker', 'v', 'LineStyle', 'none');
-plot(time(locs), pks, 'r', 'Marker', 'v', 'LineStyle', 'none');
+plot(time(locs), pks, 'r', 'Marker', 'v', 'LineStyle', 'none'); % Step detection point by peak-searching method
 strNum = num2str(numStepsP);
 title('Non-Gavity Magnitude of accleration over time with Peak find detection')
 xlabel('time/seconds')
@@ -688,7 +812,13 @@ legend('Non-Gravity Magnitude of Acceleration', ['Step counts by Peak Searching:
 hold off
 saveas(gcf,'figure5.png')
 
+
+
+% figure 6 shows localization competition between 1)zero-crossing X gyro integration,
+% 2)peak-searching X gyro intergration, and 3)peak-searching X Kalman output
 figure
+% zero-crossing X gyro integration in blue, peak-searching X gyro
+% intergration in red, and peak-seaching X Kalman output in magenta
 plot(positionX, positionY, 'b-v', positionX1, positionY1, 'r-o', KalmanPosX, KalmanPosY, 'm-*')
 
 title('Indoor path tracking')
@@ -698,9 +828,14 @@ legend('BY crossing zero algorithm path tracking', 'BY peak searching algorithm 
 saveas(gcf,'figure6.png')
 
 
+
+
+% figure 7 shows competition between heading estimation from Kalman,
+% heading etimation from Gyro intergration, and heading estimation from
+% Magnetometer
 figure
 subplot(3,1,1)
-plot(time, headingk)
+plot(time, headingk) % heading estimation from kalman output in blue
 hold on
 title('kalman_heading')
 xlabel('time')
@@ -708,13 +843,13 @@ ylabel('radians')
 legend('headng')
 hold off
 subplot(3,1,2)
-plot(time, head)
+plot(time, head, 'r')  % heading estimation from gyro intergration in red
 title('heading angle')
 xlabel('time')
 ylabel('radians')
 legend('kalman_output')
 subplot(3,1,3)
-plot(time, direction)
+plot(time, direction, 'g')  % heading estimation from mag output in green
 title('magnometer direction')
 xlabel('time')
 ylabel('radians')
@@ -722,6 +857,10 @@ legend('headng')
 saveas(gcf,'figure7.png')
 
 
+
+
+% figure 8 shows path estimation from peak-searching X kalman output
+% keep press any key in keyboard to show next step
 figure
 hold on
 
