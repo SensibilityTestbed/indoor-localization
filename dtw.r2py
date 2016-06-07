@@ -1,0 +1,39 @@
+"""
+<Program Name>
+  dtw.r2py
+
+<Purpose>
+  This is a script for 1-dimension dynamic time wrapping to figure out 
+  the correlation / differene between input data and reference file. 
+"""
+
+
+
+# basic function, for both online/offline version
+def dtw(s, t):
+  ns = len(s)
+  nt = len(t)
+  # initilization
+  D = [[10000.0 for i in range(ns+1)] for j in range(nt+1)]
+  D[0][0] = 0
+
+  # dynamic processing
+  for i in range(ns):
+    for j in range(nt):
+      d = abs(s(i)-t(j))
+      D[i+1][j+1] = d+min(D[i][j+1], D[i+1][j], D[i][j])
+
+  return D[ns+1][nt+1]
+
+
+
+
+# for offline version
+def getDtwList(inputdata, reference, windowSize):
+  DList = []
+  # compare the windowSize samples input data with reference file
+  for i in range(int(length(inputdata)/windowSize)):
+    DList.append(inputdata[i*windowSize], reference)
+
+  return DList
+
