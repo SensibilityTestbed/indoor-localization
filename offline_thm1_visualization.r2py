@@ -1,0 +1,97 @@
+datakeys = ['time', 'xforce', 'yforce', 'zforce', 'pitch', 'roll', 'yaw', 'xmag', 'ymag', 'zmag']
+
+def import_csv(filename):
+  data = []
+  fh = openfile(filename, False)
+  fstr = fh.readat(None, 0)
+  fstr = fstr[fstr.find('\n')+1:-1]
+  for line in fstr.split('\n'):
+    strdata = line.split(',')
+    zipped = zip(datakeys, strdata)
+    entry = {}
+    for key, value in zipped:
+      entry[key] = float(value)
+    data.append(entry)
+  return data
+
+
+dy_import_module_symbols('orientation_filter_visualization.r2py')
+dy_import_module_symbols('stat_stream.r2py')
+dy_import_module_symbols('precalibration.r2py')
+
+#caldata = import_csv("samsung_100hz_calibration.csv")
+#caldata = import_csv("180cal.csv")
+caldata = import_csv("sony_50hz_calibration.csv")
+
+acc_stream = StatStream()
+gyro_stream = StatStream()
+magnet_stream = StatStream()
+
+gravity_vector = matrix_init(1,3)
+for meas in caldata:
+  acc = [meas['xforce'], meas['yforce'], meas['zforce']]
+  gravity_vector = matrix_add(gravity_vector, [acc])
+  acc_stream.update(matrix_row_magnitude(acc))
+  gyro_stream.update(matrix_row_magnitude([meas['pitch'], meas['roll'], meas['yaw']]))
+  magnet_stream.update(matrix_row_magnitude([meas['xmag'], meas['ymag'], meas['zmag']]))
+
+gravity_vector = matrix_scale(gravity_vector, 1.0 / len(caldata))
+pre = PreCalibration(1, 0)
+pre.acc_stats = acc_stream
+acc_bias = ((acc_stream.mean - 9.81) ** 2 / 3) ** 0.5
+pre.gravity_vector =  matrix_minus(gravity_vector, [[acc_bias, acc_bias, acc_bias]])[0] 
+#pre.bias_variance = [0.000101659, 0.000131985, 0.000330916]
+pre.bias_variance = [0.00018941, 0.000173484, 0.000569715]
+pre.gyro_stats = gyro_stream
+#pre.gyro_stats.variance = [0.000317183, 2.45004E-05, 1.80867E-06]
+pre.gyro_stats.variance = [2.82456E-05, 2.01803E-05, 3.64261E-05]
+pre.magnet_stats = magnet_stream
+#pre.magnet_stats.variance = [0.141777582, 0.058222208, 0.650667031]
+pre.magnet_stats.variance = [0.069341112, 0.107692745, 0.034996693]
+#pre.magnetic_field = [[-21.5200004], [-3.26000004], [-36.2800002]]
+pre.magnetic_field = [[-8.7419892], [-22.9457665], [-24.9451445]]
+
+
+
+
+compass = OrientationFilter(pre)
+
+#data = import_csv("samsung_100hz_rotation.csv")
+#data = import_csv("180.csv")
+#data = import_csv("samsung_100hz_trousers2.csv")
+data = import_csv("sony_trousers_hand_mv1.csv")
+
+# v = matrix_transpose([pre.gravity_vector])
+# g = [[0.], [0.], [1.]]
+# log('0', matrix_multiply(quaternion_to_matrix(quaternion_from_gravity(pre.gravity_vector)), g), '\n')
+#acc = [data[0]['xforce'], data[0]['yforce'], data[0]['zforce'], 0.]
+#acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
+#log('start:', matrix_multiply(quaternion_to_matrix(quaternion_inverse(quaternion_from_gravity(pre.gravity_vector))), acc), '\n')
+#log('start:', quaternion_rotate(quaternion_from_gravity(pre.gravity_vector), acc)[:3], '\n')
+# cnt = 1
+#start = getruntime()
+
+fh = openfile('kalman_q.csv', True)
+header = 'x_x,x_y,x_z,y_x,y_y,y_z,z_x,z_y,z_z\n'
+fh.writeat(header, 0)
+EOF = len(header)
+
+for entry in data:
+  #theta = compass.get_heading(entry)
+  #fh.writeat(str(theta) + '\n', EOF)
+  t = compass.get_heading(entry)
+  tempstring = str(t[0][0][0]) + ',' + str(t[0][1][0]) + ',' + str(t[0][2][0]) +',' + str(t[1][0][0]) + ',' + str(t[1][1][0]) + ',' + str(t[1][2][0]) + ',' + str(t[2][0][0]) + ',' + str(t[2][1][0]) + ',' + str(t[2][2][0]) + '\n' 
+  fh.writeat(tempstring, EOF)
+  EOF += len(tempstring)
+
+fh.close()
+  # log(cnt, quaternion_rotate(q, v)[:3], '\n')
+  # log(cnt, matrix_multiply(quaternion_to_matrix(q), g), '\n')
+  # cnt += 1
+#acc = [data[-1]['xforce'], data[-1]['yforce'], data[-1]['zforce'], 0.]
+#acc = matrix_scale([acc], 1.0 / matrix_row_magnitude(acc))[0]
+#log('end:', quaternion_rotate(q, acc)[:3], '\n\n')
+#log('acc:', acc, '\n\n')
+#end = getruntime() - start
+#log("\n Total runtime: ", end, '\n\n') 
+  

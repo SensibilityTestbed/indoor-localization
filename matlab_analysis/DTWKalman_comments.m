@@ -661,6 +661,35 @@ end
 
 
 
+%% Visualization
+%% File loading
+filename = 'kalman_q.csv'; % experiment file
+
+
+
+
+
+%% Raw data processing
+data = csvread(filename,1,0);
+
+% Read quaternion data
+x_x = data(:,1); 
+x_y = data(:,2);
+x_z = data(:,3);
+y_x = data(:,4); 
+y_y = data(:,5);
+y_z = data(:,6);
+z_x = data(:,7);
+z_y = data(:,8); 
+z_z = data(:,9);
+
+
+
+
+
+
+
+
 
 
 
@@ -862,18 +891,49 @@ saveas(gcf,'figure7.png')
 % figure 8 shows path estimation from peak-searching X kalman output
 % keep press any key in keyboard to show next step
 figure
-hold on
 
-for i = 1:length(KalmanPosX)
-    plot(KalmanPosX(i), KalmanPosY(i), 'b-o')
-    plot(KalmanPosX(1:i),KalmanPosY(1:i), 'b-o')
-    pause
+counter = 1;
+for i = 1:length(x_x)
+    subplot(2, 2, [1 3])
+    hold on
+    if counter < length(locs)
+        if i == locs(counter) 
+            if counter < 93
+                plot(KalmanPosX(counter), KalmanPosY(counter), 'b-*')
+                plot(KalmanPosX(1:counter),KalmanPosY(1:counter), 'b-*')
+            elseif counter < 96
+                plot(KalmanPosX(counter), KalmanPosY(counter), 'r-o')
+                plot(KalmanPosX(92:counter),KalmanPosY(92:counter), 'r-o')
+            else
+                plot(KalmanPosX(counter), KalmanPosY(counter), 'g-x')
+                plot(KalmanPosX(95:counter),KalmanPosY(95:counter), 'g-x')
+            end
+            counter = counter + 1;
+        end
+    end
+    hold off
+    axis([-15, 20, -6, 10])
+    title('Indoor path tracking')
+    xlabel('meter')
+    ylabel('meter')
+    
+    subplot(2, 2, [2 4])
+    plot3([0, x_x(i)], [0, x_y(i)], [0, x_z(i)], 'LineWidth',3)
+    hold on
+    plot3([0, y_x(i)], [0, y_y(i)], [0, y_z(i)], 'r', 'LineWidth',3)
+    plot3([0, z_x(i)], [0, z_y(i)], [0, z_z(i)], 'g', 'LineWidth',3)
+    hold off
+    grid on
+    axis([-1 1 -1 1 -1 1])
+    title('Device Orientation Tracking')
+    %xlabel('x-axis in global coordinate')
+    %ylabel('y-axis in global coordinate')
+    %zlabel('z-axis in global coordinate')
+    pause(0.001)
+    
 end
 
-title('Indoor path tracking')
-xlabel('meter')
-ylabel('meter')
 %legend('lab boundary', 'ideal path','in trousers pocket','take out of the pocket','held in hand' ,'location', 'southoutside')
-hold off
+
 saveas(gcf,'figure8.png')
 
