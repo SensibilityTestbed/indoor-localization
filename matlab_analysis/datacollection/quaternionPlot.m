@@ -6,29 +6,31 @@ close all;
 
 
 %% File loading
-filename = 'yu\quarternion_ref\yu_call1_ref_q.csv'; % experiment file
+namestring = 'yu\quarternion_ref\yu_';
+namestring1 = '_ref_q.csv';
 
+for i = {'call1','hand1','t1','b1'}
+    string = char(i);
+    filename = [namestring string namestring1];
+   
 
+   
+    data = csvread(filename,1,0);
 
+    % Read quaternion data
+    x = data(:,1); 
+    y = data(:,2);
+    z = data(:,3);
+    s = data(:,4);
 
-
-%% Raw data processing
-data = csvread(filename,1,0);
-
-% Read quaternion data
-x = data(:,1); 
-y = data(:,2);
-z = data(:,3);
-s = data(:,4);
-
-% plot in 3D
+    % plot in 3D
+    figure
+    plot3(x,y,z)
+    grid on
+    title(string)
+end
+%{
 figure
-plot3(x,y,z)
-grid on
-
-
-figure
-
 for i = 1:length(x)
     sum_temp = x(i).^2 + y(i).^2 + z(i).^2;
     if sum_temp ~= 1.0
@@ -44,3 +46,4 @@ for i = 1:length(x)
     pause(0.01)
 end
 hold off
+%}
