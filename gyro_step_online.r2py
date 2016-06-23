@@ -1,0 +1,221 @@
+
+"""
+<Program Name>
+  pedometer.r2py
+<Purpose>
+  This is a script for walking step counter. Analysis of the sensor data 
+  from accelerometer to detect the walking / running steps. Introducing
+  pre-calibration stage, noise level threshold and moving average filter
+  to accurate step detection for difference devices.
+  *Note: the device must be stable for 1 second pre-calibration from beginning
+"""
+
+
+
+
+dy_import_module_symbols('getsensor.r2py')
+dy_import_module_symbols('pre_online.r2py')
+hanning = dy_import_module('moving_average_hanning.r2py')
+butterworth = dy_import_module('butterworth.r2py')
+
+
+
+
+
+# constants for pre-calibratino stage
+PRE_LEARN_SAMPLE_NUMBER = 100
+ZERO_INTERVAL = 0.4                  # Minimum time difference between each step in senconds
+PEAK_INTERVAL = 0.5
+
+
+
+
+# Peodmeter class, includes filtering raw data and step estimation
+class Pedometer:
+  def __init__(self, precalibration, height):
+    # Coefficient from pre-calibration stage
+    self.gravity_constant = precalibration.get_gravity()
+    self.samplerate = precalibration.get_sample_rate()
+    self.threshold = precalibration.gyro_stats.variance ** 0.5 * 8
+    self.gyro_mean = precalibration.gyro_stats.mean
+
+    log("threshold: ", self.threshold, "mean: ", self.gyro_mean, '\n')
+
+    self.steptime = precalibration.time
+
+    # Initialize moving average filter
+
+ 
+    self.maf = hanning.HanningFilter(precalibration.time, 0.125)
+
+
+    # Initialize low pass filter
+    self.lpf = butterworth.ButterworthFilter("low", 3.0, self.samplerate, precalibration.time, 0.125)
+
+    self.hpf = butterworth.ButterworthFilter("high", 0.1, self.samplerate, precalibration.time, 0.125)
+
+
+    self.height = height
+
+    self.zerocount = 0
+    self.lastmag = 0.0
+    self.peakcount = 0
+    self.peak_window_start = self.steptime
+    self.maglist = []
+    self.timelist = []
+    self.max_mag = self.threshold
+    self.max_time = self.peak_window_start
+    self.last_peak_time = self.max_time
+    self.flag = 1
+
+    self.distance_zero = []
+    self.time_zero = []
+    self.distance_peak = []
+    self.time_peak = []
+    
+
+    
+
+  def detect_step(self, raw_data, time, method = 0): 
+
+
+    # Non-gravity acceleration
+    raw_mag = matrix_row_magnitude(raw_data['roll'], raw_data['pitch'], raw_data['azimuth']) - self.gyro_mean
+
+
+
+    # linear phase low pass filter
+    lpf_mag = self.lpf.filter(raw_mag, time, True)
+    hpf_mag = self.hpf.filter(lpf_mag, time, True)
+
+
+
+    # moving average filter
+    maf_mag = self.maf.hanning_filter(hpf_mag, time)
+
+    log("raw: ", raw_mag, "maf_mag: ", maf_mag, '\n')
+
+
+    
+    # step detection
+    peak = self._detect_peak(maf_mag, time)
+    zero = self._detect_zero(maf_mag, time)
+    if method == 1:
+      return peak
+    else:
+      return zero
+
+
+
+  def get_stepcount(self):
+    return {"zero": self.zerocount, "peak": self.peakcount} 
+
+
+
+
+
+  def get_distance(self):
+    sum_zero = 0.0
+    sum_peak = 0.0
+    if len(self.distance_zero) > 0:
+      for i in range(0, len(self.distance_zero)):
+        sum_zero += self.distance_zero[i]
+      
+    if len(self.distance_peak) > 0:
+      for i in range(0, len(self.distance_peak)):
+        sum_peak += self.distance_peak[i]
+
+    # Average of people's stride is height * 0.415
+    # Average stride works as reference
+    average_zero_distance = self.zerocount * 0.415 * self.height/100
+    average_peak_distance = self.peakcount * 0.415 * self.height/100
+    return {"distance_estimation_zero": sum_zero, "distance_estimation_peak": sum_peak, "average_zero_distance": average_zero_distance, "average_peak_distance": average_peak_distance}
+
+
+
+
+  # crossing noise level and actual step interval > minimum step interval
+  def _detect_zero(self, data, time):
+    stepped = False
+    if self.lastmag <= self.threshold and data > self.threshold and time - self.steptime >= ZERO_INTERVAL:
+      self.zerocount += 1
+      self.distance_zero.append(self._distance_estimation(self.steptime, time))
+      self.time_zero.append(time)
+      self.steptime = time
+      log("zero count:", self.zerocount, '\n')
+      stepped = True
+    self.lastmag = data
+
+    return stepped
+
+  
+
+
+  # a moving window to capture the peak
+  # will change to queue later
+  def _detect_peak(self, data, time): 
+    stepped = False
+    self.maglist.append(data)
+    self.timelist.append(time)
+
+    if time - self.peak_window_start >= PEAK_INTERVAL * self.flag:
+      for i in range(1, len(self.maglist)-1):
+        if self.maglist[i-1] <= self.maglist[i] and self.maglist[i] > self.maglist[i+1] and \
+            self.maglist[i] > self.max_mag:
+          self.max_mag = self.maglist[i]
+          self.max_time = self.timelist[i]
+          self.flag = 0
+
+      if self.flag:
+        self.flag += 1
+      else:
+        self.flag = 1
+        self.peakcount += 1
+        stepped = True
+
+        self.distance_peak.append(self._distance_estimation(self.last_peak_time, self.max_time))
+        self.time_peak.append(time)
+        log("peak count: ", self.peakcount, '\n')
+        self.peak_window_start = time
+        self.last_peak_time = self.max_time
+        self.max_mag = self.threshold
+  # self.last_maxtime = self.maxtime
+        self.maglist = []
+        self.timelist = []
+  
+    return stepped
+
+
+
+
+
+
+  # Distance estimation by height and steps frequency  
+  def _distance_estimation(self, lasttime, currenttime):
+    interval = currenttime - lasttime
+    step_per_second = 1.0/interval
+    if 0.0 <= step_per_second < 1.0:
+      stride_per_step = self.height/5.0
+    elif 1.0 <= step_per_second < 1.5:
+      stride_per_step = self.height/4.0
+    elif 1.5 <= step_per_second < 2.0:
+      stride_per_step = self.height/3.0
+    elif 2.0 <= step_per_second < 2.5:
+      stride_per_step = self.height/2.0
+    elif 2.5 <= step_per_second < 3.0:
+      stride_per_step = self.height/1.2
+    elif 3.0 <= step_per_second < 4.0:
+      stride_per_step = self.height
+    else:
+      stride_per_step = self.height * 1.2
+
+    speed_per_second = step_per_second * stride_per_step
+    step_length = speed_per_second * interval
+
+    if interval > 1.0 or step_length > 300.0:
+      log("interval", interval, "step_length", step_length)
+      step_length = self.height * 0.415
+
+    return step_length/100
+
+# -*- mode: python;-*-
