@@ -8,8 +8,8 @@ close all;
 %% File loading
 namestring = 'yu\quarternion_ref\yu_';
 namestring1 = '_ref_q.csv';
-
-filename = 'yu\ref\yu_hand1_ref.csv';
+string = 't1';
+filename = 'yu\ref\yu_t1_ref.csv';
 
 data = csvread(filename,1,0);
 count = 1:length(data); % setup counter array
@@ -124,7 +124,7 @@ numStepsP = length(locs);
 
 %% Timestamp with pedometer
 
-string = 'hand1';
+
 filename_q = [namestring string namestring1];
 
 data_q = csvread(filename_q,1,0);
@@ -135,9 +135,17 @@ y = data_q(:,2);
 z = data_q(:,3);
 s = data_q(:,4);
 
+for i = 1: length(x)
+    sum_temp = x(i).^2 + y(i).^2 + z(i).^2;
+    if sum_temp ~= 1.0
+        x(i) = (1.0/sum_temp).^0.5 * x(i);
+        y(i) = (1.0/sum_temp).^0.5 * y(i);
+        z(i) = (1.0/sum_temp).^0.5 * z(i);
+    end
+end
 
 
-%% pedometer plot
+%% pedometer and quaternion plot
 
 figure
 subplot(2,1,1)
@@ -158,10 +166,11 @@ hold off
 
 % plot in 3D
 subplot(2,1,2)
-plot3(x,y,z,':')
+plot3(x,y,z)
 hold on
 plot3(x(1:locs(1)), y(1:locs(1)), z(1:locs(1)), 'r', 'LineWidth', 3)
 hold off
+grid on
 title(string)
 saveas(gcf,'figure0.png')
 
@@ -186,10 +195,11 @@ for i = 1:length(locs)-1
 
     % plot in 3D
     subplot(2,1,2)
-    plot3(x,y,z,':')
+    plot3(x,y,z)
     hold on
     plot3(x(locs(i):locs(i+1)), y(locs(i):locs(i+1)), z(locs(i):locs(i+1)), 'r', 'LineWidth', 3)
     hold off
+    grid on
     title(string)
     figname = sprintf('figure%d.png', i);
     saveas(gcf,figname)
@@ -216,10 +226,11 @@ hold off
 
 % plot in 3D
 subplot(2,1,2)
-plot3(x,y,z,':')
+plot3(x,y,z)
 hold on
 plot3(x(locs(length(locs)):length(x)), y(locs(length(locs)):length(x)), z(locs(length(locs)):length(x)), 'r', 'LineWidth', 3)
 hold off
+grid on
 title(string)
 
 figname = sprintf('figure%d.png', i+1);
