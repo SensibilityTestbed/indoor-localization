@@ -135,6 +135,8 @@ y = data_q(:,2);
 z = data_q(:,3);
 s = data_q(:,4);
 
+mag_q = [];
+% Normalization
 for i = 1: length(x)
     sum_temp = x(i).^2 + y(i).^2 + z(i).^2;
     if sum_temp ~= 1.0
@@ -143,6 +145,7 @@ for i = 1: length(x)
         z(i) = (1.0/sum_temp).^0.5 * z(i);
     end
 end
+
 
 
 %% pedometer and quaternion plot
@@ -172,6 +175,29 @@ plot3(x(1:locs(1)), y(1:locs(1)), z(1:locs(1)), 'r', 'LineWidth', 3)
 hold off
 grid on
 title(string)
+
+meanX = mean(x(1:locs(1)));
+meanY = mean(y(1:locs(1)));
+meanZ = mean(z(1:locs(1)));
+
+Sx = std(x(1:locs(1)));
+Sy = std(y(1:locs(1)));
+Sz = std(z(1:locs(1)));
+
+StringX = sprintf('std x: %d, mean x: %d', Sx, meanX);
+StringY = sprintf('std y: %d, mean y: %d', Sy, meanY);
+StringZ = sprintf('std z: %d, mean z: %d', Sz, meanZ);
+
+descr = {StringX;
+    StringY;
+    StringZ
+    };
+
+
+text(-1.9,0.5, -1.9,descr)
+
+
+
 saveas(gcf,'figure0.png')
 
 for i = 1:length(locs)-1
@@ -201,7 +227,28 @@ for i = 1:length(locs)-1
     hold off
     grid on
     title(string)
+    
+    meanX = mean(x(locs(i):locs(i+1)));
+    meanY = mean(y(locs(i):locs(i+1)));
+    meanZ = mean(z(locs(i):locs(i+1)));
+    
+    Sx = std(x(locs(i):locs(i+1)));
+    Sy = std(y(locs(i):locs(i+1)));
+    Sz = std(z(locs(i):locs(i+1)));
+    
+    StringX = sprintf('std x: %d, mean x: %d', Sx, meanX);
+    StringY = sprintf('std y: %d, mean y: %d', Sy, meanY);
+    StringZ = sprintf('std z: %d, mean z: %d', Sz, meanZ);
+    
+    descr = {StringX;
+        StringY;
+        StringZ
+        };
+
+    
+    text(-1.9,0.5, -1.9,descr)
     figname = sprintf('figure%d.png', i);
+    
     saveas(gcf,figname)
 end
 
@@ -232,6 +279,30 @@ plot3(x(locs(length(locs)):length(x)), y(locs(length(locs)):length(x)), z(locs(l
 hold off
 grid on
 title(string)
+
+
+meanX = mean(x(locs(length(locs)):length(x)));
+meanY = mean(y(locs(length(locs)):length(x)));
+meanZ = mean(z(locs(length(locs)):length(x)));
+
+Sx = std(x(locs(length(locs)):length(x)));
+Sy = std(y(locs(length(locs)):length(x)));
+Sz = std(z(locs(length(locs)):length(x)));
+
+StringX = sprintf('std x: %d, mean x: %d', Sx, meanX);
+StringY = sprintf('std y: %d, mean y: %d', Sy, meanY);
+StringZ = sprintf('std z: %d, mean z: %d', Sz, meanZ);
+
+descr = {StringX;
+    StringY;
+    StringZ
+    };
+
+
+text(-1.9,0.5, -1.9,descr)
+
+
+
 
 figname = sprintf('figure%d.png', i+1);
 saveas(gcf,figname)
