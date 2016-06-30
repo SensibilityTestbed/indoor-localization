@@ -1,0 +1,163 @@
+"""
+<Program Name>
+  butterworth.r2py
+
+<Purpose>
+  This is a script for low/high pass filter to filter out 
+  the raw data with variable cut off frequency. 
+  Introducing an preset maximum sample interval to avoid device lag.
+"""
+
+
+# temporarly added trigonomery functions in this script
+# Will delete these functions after fix trig.r2py
+pi = 3.14159265358979323846
+TERMS = 11
+
+def butter_factorial(x):
+  result = 1 
+  for num in range(x):
+    result *= (num + 1)
+  return result
+
+
+def butter_cos(x):
+  taylorsum = 0.0
+  for n in range(TERMS):
+    taylorsum += (-1)**n * (x**(2.0*n) / butter_factorial(2*n))
+  return max(min(taylorsum, 1), -1)
+
+
+def butter_sin(x):
+  return (1-butter_cos(x)**2)**0.5
+
+
+def butter_tan(x):
+  return butter_sin(x)/butter_cos(x)
+
+
+
+
+# y(k) = b0x(k) + b1x(k-1) + b2x(k-2) - a1y(k-1) - a2y(k-2)
+
+
+class ButterworthFilter:
+  def __init__(self, type, cutoff_frequency, sampling_frequency, current_time, threshold):
+    self.mag_list = []
+    self.input_list = []
+    self.output_list = []
+    self.cutoff_frequency = cutoff_frequency
+    self.type = type
+    self.a1 = 0.0
+    self.a2 = 0.0
+    self.b0 = 0.0
+    self.b1 = 0.0
+    self.b2 = 0.0
+
+
+    self._filter_coefficient(sampling_frequency)
+
+
+
+    self.last_time = current_time
+    self.threshold = threshold
+
+    self.timelist = []
+
+    self.filter_list = []
+
+
+
+
+  # get filter coefficient 
+  # by cutoff frequency and sampling frequency
+  def _filter_coefficient(self, sampling_frequency):
+    omegaC = self.cutoff_frequency / sampling_frequency
+    c = 1.0 / butter_tan(pi * omegaC)
+    q = 2 ** 0.5
+
+    a0 = 1.0 + q * c + c * c
+    self.a1 = -2.0 * (c * c - 1.0) / a0
+    self.a2 = (1.0 - q * c + c * c) / a0
+ 
+    if self.type == "low":
+      self.b0 = 1.0 / a0
+      self.b1 = 2.0 / a0
+      self.b2 = self.b0
+    
+    elif self.type == "high":
+      self.b0 = c * c / a0
+      self.b1 = -2.0 * c * c / a0
+      self.b2 = self.b0
+
+
+
+  # lowpass/high pass filter
+  # Default dynamic is False
+  # if dynamic == True, get each sample's sampling rate
+  def filter(self, data, time, dynamic = False):
+    # avoid device lag
+    # different sampling time interval will reduce the filter's accuracy
+    #Getting data and time as a list 
+
+    #retrieving data and time onto list. Refresh Filter list for next data points
+    self.filter_list = []
+    self.mag_list.extend(data)
+    self.timelist.extend(time)
+
+    # will change to queue later
+    for i in range(len(self.mag_list)):
+      #Check for minimum step interval
+      if i +1 < len(self.mag_list) and self.timelist[i+1] - self.timelist[i] < self.threshold:
+       
+        #Adding in the first 2 inputs in the beginning //Getting ready for filter
+        if len(self.input_list) == 0 or len(self.input_list) == 1:
+          self.input_list.append(self.mag_list[i])
+          self.output_list.append(self.mag_list[i])
+          self.filter_list.append(self.mag_list[i])
+        elif len(self.input_list) == 2 or len(self.input_list) == 3:
+          
+          #add third data that will be filtered 
+          if len(self.input_list) == 2:
+            self.input_list.append(self.mag_list[i])
+          else:
+            self.input_list[2] = self.mag_list[i]
+
+          #filtered data 
+          filtered_magNoG = self.b0 * self.input_list[2] + self.b1 * self.input_list[1] + self.b2 * self.input_list[0] - self.a1 * self.output_list[1] - self.a2 * self.output_list[0] 
+        
+          #adding data into output/filter data 
+          if (len(self.output_list) == 2):
+            self.output_list.append(filtered_magNoG)
+          else:
+            self.output_list[2] = filtered_magNoG
+            
+          self.filter_list.append(filtered_magNoG)
+
+          #pushing list up, getting rid of old data points
+          self.input_list[0] = self.input_list[1]
+          self.input_list[1] = self.input_list[2]
+
+          self.output_list[0] = self.output_list[1]
+          self.output_list[1] = self.output_list[2]
+
+
+  
+      else:
+        #if time > threshold, input and output list will be cleared. 
+        self.input_list = []
+        self.output_list = []
+        #Adding the first data point in again 
+        self.input_list.append(self.mag_list[i])
+        self.output_list.append(self.mag_list[i])
+        self.filter_list.append(self.mag_list[i])
+
+    #Refresh the data for the next sample data
+    self.mag_list = []
+    self.input_list = []
+    self.output_list = []
+    self.timelist = []
+    return self.filter_list
+
+
+# -*- mode: python;-*-

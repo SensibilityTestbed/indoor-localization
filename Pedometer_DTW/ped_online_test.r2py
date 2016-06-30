@@ -1,0 +1,49 @@
+#sensorlib = dy_import_module("sensorlib.r2py")
+dy_import_module_symbols('getsensor.r2py')
+dy_import_module_symbols('ped_online.r2py')
+
+
+HEIGHT = 175
+SENSOR_SELECOTR = 1
+
+
+
+log("\n\n###################################\n")
+log(" Welcome to the online pedometer!\n\n")
+log("Pre-calibration start, please wait...\n\n")
+
+
+
+
+def pedometer_thread(ped):
+  #def func():
+  start_time_1 = getruntime()
+  fileRH = ped.readFile(start_time_1, "sony_hand.csv")
+  '''start_time_2 = getruntime()
+  fileTH = ped.readFile(start_time_2, "sony_trousers.csv")
+  start_time_3 = getruntime()
+  fileCT = ped.readFile(start_time_3, "sony_coat.csv")
+  log("==============================")
+  while getruntime() - start_time_3  < 60:
+    time = getruntime()
+    ped.detect_step(get_sensors(), fileRH, fileTH, fileCT, time, 1)
+  stop_sensing()
+  distance = ped.get_distance()'''
+    
+  log("\n\n     Thank you for your using!\n")
+  log("###################################\n")
+
+  #return func
+
+
+
+
+
+start_sensing(SENSOR_SELECOTR, 0)
+
+pre = PreCalibration(SENSOR_SELECOTR, 100)
+log("Pre-calibration down! The pre-learned coefficients shows as below:\n")
+ped = Pedometer(pre,HEIGHT)
+
+#createthread(pedometer_thread(ped))
+pedometer_thread(ped)
