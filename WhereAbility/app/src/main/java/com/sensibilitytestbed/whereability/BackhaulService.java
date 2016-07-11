@@ -23,6 +23,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -41,18 +42,17 @@ public class BackhaulService extends Service {
 
     private BlockingQueue queue = new LinkedBlockingQueue();
     private BackhaulBinder mBinder = new BackhaulBinder();
-    private boolean started = false, done = false;
+    private boolean started = false, done = false, online = false;
     private JSONArray batch = new JSONArray();
-    private Lock lock = new ReentrantLock(), doneLock = new ReentrantLock();
+    private Lock lock = new ReentrantLock(), doneLock = new ReentrantLock(), onlineLock = new ReentrantLock();
     private Condition notFull = lock.newCondition(), notDone = doneLock.newCondition();
     private ConnectivityManager mConnectivityManager;
     private NetworkInfo mActiveNetwork;
+    private FileWriter fileWriter;
 
     @Override
     public void onCreate() {
         super.onCreate();
-
-        Log.d("SERVER", "We have a backhauling service!");
 
         mConnectivityManager = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
         mActiveNetwork = mConnectivityManager.getActiveNetworkInfo();
@@ -67,8 +67,6 @@ public class BackhaulService extends Service {
                 // and the buffer is empty.
                 while (started || !queue.isEmpty()) {
 
-                    Log.d("SERVER", "backhauling...");
-
                     lock.lock();
                     try {
                         // Wait until there's a full batch or the
@@ -78,11 +76,9 @@ public class BackhaulService extends Service {
                     } catch (InterruptedException e) {
 
                     } finally {
-                       lock.unlock();
+                        lock.unlock();
                     }
 
-
-                    Log.d("SERVER", "q size:" + queue.size());
 
                     // Consume the next batch of entries (i.e. measurements).
                     while (batch.length() < BATCH_SIZE && !queue.isEmpty())
@@ -90,61 +86,62 @@ public class BackhaulService extends Service {
                             batch.put(queue.take());
                         } catch (InterruptedException e) { }
 
-                    Log.d("SERVER", "flushed: " + batch.length());
 
-                    Log.d("SERVER", "q size:" + queue.size());
+                    onlineLock.lock();
+                    if (online) {
+                        onlineLock.unlock();
+                        // Sleep until there's Internet connectivity.
+                        while (mActiveNetwork == null || !mActiveNetwork.isConnectedOrConnecting()) {
+                            if (mActiveNetwork == null)
+                                mActiveNetwork = mConnectivityManager.getActiveNetworkInfo();
+                            try {
+                                Thread.sleep(5000);
+                            } catch (InterruptedException e) {
+                            }
+                        }
 
-                    // Sleep until there's Internet connectivity.
-                    while (mActiveNetwork == null || !mActiveNetwork.isConnectedOrConnecting()) {
-                        if (mActiveNetwork == null)
-                            mActiveNetwork = mConnectivityManager.getActiveNetworkInfo();
+
+                        // Send the batch to the server
                         try {
-                            Thread.sleep(5000);
-                        } catch (InterruptedException e) { }
-                    }
+                            // Connect to sensevis
+                            String body = getSharedPreferences(MainActivity.SETUP, MODE_PRIVATE).getString("DATABASE", "") + batch.toString();
+                            URL url = new URL("http://sensevis.poly.edu/backhaul");
+                            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
-                    Log.d("SERVER", "got WiFi");
+                            // Declare message as POST
+                            conn.setDoOutput(true);
 
-                    // Send the batch to the server
-                    try {
-                        // Connect to sensevis
-                        String body = "user=Sensibility&exp=Indoor%20Localization&set=sas16&entries=" + batch.toString();
-                        URL url = new URL("http://sensevis.poly.edu/backhaul");
-                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                            // Declare length of packet body
+                            conn.setFixedLengthStreamingMode(body.length());
 
-                        // Declare message as POST
-                        conn.setDoOutput(true);
+                            // Send the data
+                            OutputStream ostream = new BufferedOutputStream(conn.getOutputStream());
+                            ostream.write(body.getBytes());
+                            ostream.flush();
 
-                        // Declare length of packet body
-                        conn.setFixedLengthStreamingMode(body.length());
+                            // Did the message go through?
+                            if (conn.getResponseCode() > 299)
+                                replace(batch);
 
-                        // Send the data
-                        OutputStream ostream = new BufferedOutputStream(conn.getOutputStream());
-                        ostream.write(body.getBytes());
-                        ostream.flush();
+                            conn.disconnect();
 
-                        // Did the message go through?
-                        if (conn.getResponseCode() > 299) {
-                            Log.d("SERVER", "bad request");
+                        } catch (IOException e) {
+                            // Lost connection to the server.
+                            // Try again in next go around.
                             replace(batch);
                         }
-                        else {
-                            Log.d("SERVER", "" + conn.getResponseCode());
+                    }
+                    else {
+
+                        try {
+                            String json = batch.toString();
+                            fileWriter.write(json.substring(1, json.length() - 1) + ",");
                         }
-
-                        conn.disconnect();
-
-                    } catch (IOException e) {
-                        // Lost connection to the server.
-                        // Try again in next go around.
-                        Log.d("SERVER", "lost connection");
-                        replace(batch);
-                        Log.d("SERVER", "q size:" + queue.size());
+                        catch (IOException e) { Log.d("fw", e.toString()); }
+                        onlineLock.unlock();
                     }
                     batch = new JSONArray();
                 }
-
-                Log.d("SERVER", "backhaul done");
 
                 // Finished backhauling, so signal
                 // that it's okay to destroy the service.
@@ -156,12 +153,12 @@ public class BackhaulService extends Service {
                     doneLock.unlock();
                 }
 
-                Log.d("SERVER", "signaled");
+                Log.d("fw", "done");
 
             }
         }).start();
+        Log.d("fw", "create");
     }
-
 
 
 
@@ -187,7 +184,7 @@ public class BackhaulService extends Service {
                 return;
             queue.put(entry);
         } catch (InterruptedException e) {
-          // Move on (toss entry) even if we failed to insert it,
+          // Move on (i.e. toss entry) even if we failed to insert it,
           // so we don't keep blocking the sensor service.
         }
 
@@ -200,6 +197,30 @@ public class BackhaulService extends Service {
         } finally {
             lock.unlock();
         }
+    }
+
+
+
+    public void setOnline(boolean status, String filename) {
+        Log.d("fw", "online: " + status + ", path: " + filename);
+        onlineLock.lock();
+        online = status;
+        try {
+            if (fileWriter != null)
+                fileWriter.close();
+            if (online)
+                fileWriter = null;
+            else {
+                fileWriter = new FileWriter(filename);
+                fileWriter.write("[");
+            }
+        }
+        catch (IOException e) { Log.d("fw", e.toString()); }
+        onlineLock.unlock();
+        if (fileWriter != null)
+            Log.d("fw", "not null");
+        else
+            Log.d("fw", "null");
     }
 
 
@@ -219,7 +240,7 @@ public class BackhaulService extends Service {
 
     @Override
     public void onDestroy() {
-        Log.d("SERVER", "destroy service");
+        Log.d("fw", "destroy!");
 
         lock.lock();
         try {
@@ -231,7 +252,6 @@ public class BackhaulService extends Service {
             lock.unlock();
         }
 
-        Log.d("SERVER", "stopped");
 
         // Don't let the service die until the
         // buffer has been completely backhauled.
@@ -245,7 +265,20 @@ public class BackhaulService extends Service {
             doneLock.unlock();
         }
 
-        Log.d("SERVER", "finished");
+        try {
+            if (fileWriter != null) {
+                // End of the file is currently
+                // a comma, so the JSON list needs
+                // something (null) to end it.
+                fileWriter.write("null]");
+                fileWriter.close();
+            }
+
+        }
+        catch (IOException e) { Log.d("UHOH", e.toString()); }
+
+        Log.d("fw", "dead");
+
         super.onDestroy();
     }
 }

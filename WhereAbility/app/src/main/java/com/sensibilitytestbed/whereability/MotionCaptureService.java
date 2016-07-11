@@ -23,6 +23,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -41,9 +42,8 @@ public class MotionCaptureService extends Service implements SensorEventListener
     private SensorManager mSensorManager;
     private BackhaulService mBackhaulService;
     private ServiceConnection mBackhaulConnection;
-    private boolean bound = false, connecting = false;
-    private Lock lock = new ReentrantLock();
-    private Condition notBound = lock.newCondition();
+    private boolean bound = false;
+    private long boot = 0;
     private JSONObject entry;
     private Queue<JSONObject> queue = new LinkedList<JSONObject>();
 
@@ -60,12 +60,12 @@ public class MotionCaptureService extends Service implements SensorEventListener
                 // Get a reference to the backhauling service to communicate with it.
                 BackhaulService.BackhaulBinder binder = (BackhaulService.BackhaulBinder) service;
                 mBackhaulService = binder.getService();
-                Log.d("MOCAP", "connected");
                 bound = true;
             }
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
+                Log.d("MOCAP", "unbound");
                 bound = false;
             }
         };
@@ -77,6 +77,17 @@ public class MotionCaptureService extends Service implements SensorEventListener
         deviceID = setupPrefs.getInt(MainActivity.DEVICE_ID, -1);
 
 
+        boot = System.currentTimeMillis() - SystemClock.elapsedRealtime();
+        Log.d("fw", "boot: " + boot);
+
+        try {
+            entry = new JSONObject();
+            entry.put("time", 0L);
+        }
+        catch (JSONException e) {
+            Log.d("UHOH", e.toString());
+        }
+
         /****************  Start listening for sensor events.  *****************************/
 
         mSensorManager = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
@@ -86,13 +97,6 @@ public class MotionCaptureService extends Service implements SensorEventListener
         mSensorManager.registerListener(this, accelerometer, 5000);
         mSensorManager.registerListener(this, gyroscope, 5000);
         mSensorManager.registerListener(this, magnetometer, 5000);
-
-        entry = new JSONObject();
-        try {
-            entry.put("time", 0);
-        } catch (JSONException e) {}
-
-
 
         return START_STICKY;
     }
@@ -138,11 +142,29 @@ public class MotionCaptureService extends Service implements SensorEventListener
     public void onSensorChanged(SensorEvent event) {
         try {
 
-            if (event.timestamp != entry.getLong("time")) {
-                if (entry.getLong("time") != 0)
-                    queue.add(entry);
+            long elapsed = SystemClock.elapsedRealtime();
+            long timestamp;
+
+            // A sensor event's timestamp can be
+            // given in four different forms. Which one?
+
+            // Epoch nanosec
+            if (event.timestamp > 1e18)
+                timestamp = event.timestamp;
+            // ms since boot
+            else if (Math.abs(elapsed - event.timestamp) < 1e3)
+                timestamp = boot + event.timestamp;
+            // nanosec since boot
+            else if (Math.abs(elapsed - (event.timestamp / 1000000L)) < 1e3)
+                timestamp = (boot * 1000000L) + event.timestamp;
+            // Epoch ms
+            else
+                timestamp = event.timestamp * 1000000L;
+
+
+            if (timestamp != entry.getLong("time")) {
                 entry = new JSONObject();
-                entry.put("time", event.timestamp);
+                entry.put("time", timestamp);
                 entry.put("deviceID", deviceID);
             }
 
@@ -164,14 +186,15 @@ public class MotionCaptureService extends Service implements SensorEventListener
                     break;
             }
 
+            queue.add(entry);
+
             if (bound) {
-                Log.d("MOCAP", "" + queue.size());
                 while (!queue.isEmpty())
                     mBackhaulService.put(queue.remove());
             }
 
         } catch (Exception e) {
-
+            Log.d("fw", e.toString());
         }
 
     }
