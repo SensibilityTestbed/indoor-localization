@@ -343,7 +343,10 @@ public class MainActivity extends AppCompatActivity {
 
 
                 long timestamp = System.currentTimeMillis() * 1000000L;
-                store(timestamp, "{'location':" + location.getText() + "}");
+                try {
+                    store(timestamp, new JSONObject("{'location':" + location.getText() + "}"));
+                }
+                catch (JSONException e) { Log.d("UHOH", e.toString()); }
             }
         };
 
@@ -417,14 +420,14 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-    private void store(long timestamp, String data) {
+    private void store(long timestamp, JSONObject data) {
 
         if (!bound)
             bindService(new Intent(this, BackhaulService.class), mBackhaulConnection, Context.BIND_AUTO_CREATE);
 
         try {
             // Append a timestamp and the device ID to the location, and send it to the server.
-            final JSONObject entry = new JSONObject(data).put("time", timestamp).put("deviceID", deviceID);
+            final JSONObject entry = data.put("time", timestamp).put("deviceID", deviceID);
 
             new Thread(new Runnable() {
                 @Override
@@ -487,25 +490,31 @@ public class MainActivity extends AppCompatActivity {
         long timestamp = System.currentTimeMillis() * 1000000L;
         super.onActivityResult(requestCode, resultCode, data);
 
-        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
-        if (result != null) {
 
-            String contents = result.getContents();
-            if (contents != null) {
+        try {
+            IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+            if (result != null) {
 
-                String[] qrData = contents.split(",", 2);
-                if (!mDatabase.equals(qrData[1])) {
-                    SharedPreferences.Editor editor = getSharedPreferences(SETUP, MODE_PRIVATE).edit();
-                    editor.putString("DATABASE", qrData[1]);
-                    editor.commit();
+                String contents = result.getContents();
+                if (contents != null) {
+
+                    JSONObject qrData = new JSONObject(contents);
+                    String database = qrData.getString("database");
+                    if (!mDatabase.equals(database)) {
+                        SharedPreferences.Editor editor = getSharedPreferences(SETUP, MODE_PRIVATE).edit();
+                        editor.putString("DATABASE", database);
+                        editor.commit();
+                    }
+
+                    store(timestamp, qrData.getJSONObject("data"));
+                    return;
                 }
-
-                store(timestamp, qrData[0]);
-                return;
             }
         }
+        catch (Exception e) { Log.d("UHOH", e.toString()); }
         // Tell the user the scan failed
         Toast.makeText(this, "Please re-scan", Toast.LENGTH_LONG).show();
+
     }
 
 
