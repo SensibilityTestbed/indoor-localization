@@ -155,8 +155,8 @@ filteredMagNoGRH = filter(b,a,LPFmagRH);
 
 
 %% Dynamic Time Warping
-% Repeated compare the experiment data with reference data with samle
-% length, and save in two list
+% Repeated compare the experiment data with reference data with sample
+% length, and save in two lists
 
 DistListT = [];
 DistListH = [];
@@ -402,9 +402,9 @@ PCA_angle = mod((0 + cumtrapz(time,pcaSS)), 2*pi)+pi;
 
 
 %% Zero Crossing Method
-% Zero crossing method actually work as threshold crossing. each time Filtered
-% Non-gravity acceleration cross the threshold, and the time interval from
-% last crossing zero is larger than minimum step interval, count as a step
+% Zero crossing method actually works as threshold crossing. Each time Filtered
+% Non-gravity acceleration crosses the threshold, and the time interval from
+% last crossing zero is larger than minimum step interval, it counts as a step.
 
 n = length(DTWMagNoG);
 ind = 1:(n-1);
@@ -535,7 +535,7 @@ end
 
 
 %% Indoor localization by Kalman output
-% each localizatoin posistoin = last position + step stride * heading
+% each localization posistion = last position + step stride * heading
 % in detail:
 % location x = last location x + cos(heading) * estimated stride
 % location y = last location y + sin(heading) * estimated stride
@@ -545,7 +545,7 @@ KalmanPosY = [0];
 
 headingk = [];
 
-% DTW detects the device carring methods, if the device in trousers,
+% DTW detects the device carrying methods, if the device in trousers,
 % heading + pi
 for i = 1:length(k_theta)
     itr = floor(i/Dsize)+1;
@@ -860,7 +860,7 @@ saveas(gcf,'figure6.png')
 
 
 % figure 7 shows competition between heading estimation from Kalman,
-% heading etimation from Gyro intergration, and heading estimation from
+% heading estimation from Gyro intergration, and heading estimation from
 % Magnetometer
 figure
 subplot(3,1,1)
@@ -888,7 +888,7 @@ saveas(gcf,'figure7.png')
 
 
 
-% figure 8 shows path estimation from peak-searching X kalman output
+% figure 8 shows path estimation from peak-searching X Kalman output
 % keep press any key in keyboard to show next step
 figure
 
