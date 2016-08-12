@@ -535,7 +535,7 @@ end
 
 
 %% Indoor localization by Kalman output
-% each localization posistion = last position + step stride * heading
+% each localization position = last position + step stride * heading
 % in detail:
 % location x = last location x + cos(heading) * estimated stride
 % location y = last location y + sin(heading) * estimated stride
