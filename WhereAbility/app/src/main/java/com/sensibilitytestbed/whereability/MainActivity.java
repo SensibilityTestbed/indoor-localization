@@ -299,7 +299,7 @@ public class MainActivity extends AppCompatActivity {
                     onlineSwitch.setText("OFFLINE");
                     pathlabel.setText("Save file as:");
                     pathlabel.setVisibility(TextView.VISIBLE);
-                    path.setText("filename.json");
+                    path.setText("filename.csv");
                     path.setVisibility(EditText.VISIBLE);
                 }
             }
@@ -442,13 +442,18 @@ public class MainActivity extends AppCompatActivity {
                         lock.unlock();
                     }
 
-                    if (!onlineSwitch.isChecked())
+                    if (!started && !onlineSwitch.isChecked()) {
                         mBackhaulService.setOnline(false, "sdcard/" + path.getText().toString());
+                        try {
+                            entry.put("height", height);
+                        }
+                        catch (JSONException e) { Log.d("UHOH", e.toString()); }
+                    }
 
                     try {
                         mBackhaulService.put(entry);
                     } catch (Exception e) {
-
+                        Log.d("UHOH",e.toString());
                     }
                 }
             }).start();

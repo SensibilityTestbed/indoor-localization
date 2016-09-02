@@ -20,6 +20,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
@@ -39,6 +40,13 @@ import java.util.concurrent.locks.ReentrantLock;
 public class BackhaulService extends Service {
 
     public static final int BATCH_SIZE = 500;
+    private static final String[] KEYS = {
+            "time", "deviceID",
+            "height", "location",
+            "ax", "ay", "az",
+            "gx", "gy", "gz",
+            "mx", "my", "mz"
+    };
 
     private BlockingQueue queue = new LinkedBlockingQueue();
     private BackhaulBinder mBinder = new BackhaulBinder();
@@ -81,15 +89,19 @@ public class BackhaulService extends Service {
 
 
                     // Consume the next batch of entries (i.e. measurements).
-                    while (batch.length() < BATCH_SIZE && !queue.isEmpty())
+                    while (batch.length() < BATCH_SIZE && !queue.isEmpty()) {
                         try {
                             batch.put(queue.take());
-                        } catch (InterruptedException e) { }
+                        } catch (InterruptedException e) {
+                        }
+                    }
 
 
                     onlineLock.lock();
+                    boolean onlineVal = online;
+                    onlineLock.unlock();
+
                     if (online) {
-                        onlineLock.unlock();
                         // Sleep until there's Internet connectivity.
                         while (mActiveNetwork == null || !mActiveNetwork.isConnectedOrConnecting()) {
                             if (mActiveNetwork == null)
@@ -132,13 +144,30 @@ public class BackhaulService extends Service {
                         }
                     }
                     else {
-
-                        try {
-                            String json = batch.toString();
-                            fileWriter.write(json.substring(1, json.length() - 1) + ",");
+                        for (int i=0; i<batch.length(); i++) {
+                            JSONObject row;
+                            try {
+                                row = (JSONObject) batch.get(i);
+                            } catch (JSONException e) {
+                                Log.d("UHOH", e.toString());
+                                continue;
+                            }
+                            String csv = "";
+                            for (int k=0; k<KEYS.length; k++) {
+                                try {
+                                    csv += "" + row.get(KEYS[k]) + ",";
+                                } catch (JSONException e) {
+                                    csv += ",";
+                                }
+                            }
+                            csv += "\n";
+                            try {
+                                fileWriter.write(csv);
+                            }
+                            catch (IOException e) {
+                                Log.d("fw", e.toString());
+                            }
                         }
-                        catch (IOException e) { Log.d("fw", e.toString()); }
-                        onlineLock.unlock();
                     }
                     batch = new JSONArray();
                 }
@@ -212,7 +241,7 @@ public class BackhaulService extends Service {
                 fileWriter = null;
             else {
                 fileWriter = new FileWriter(filename);
-                fileWriter.write("[");
+                fileWriter.write("time,deviceID,height,location,ax,ay,az,gx,gy,gz,mx,my,mz\n");
             }
         }
         catch (IOException e) { Log.d("fw", e.toString()); }
@@ -267,10 +296,6 @@ public class BackhaulService extends Service {
 
         try {
             if (fileWriter != null) {
-                // End of the file is currently
-                // a comma, so the JSON list needs
-                // something (null) to end it.
-                fileWriter.write("null]");
                 fileWriter.close();
             }
 

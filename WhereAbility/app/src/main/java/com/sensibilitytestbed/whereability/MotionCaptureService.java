@@ -80,6 +80,7 @@ public class MotionCaptureService extends Service implements SensorEventListener
         boot = System.currentTimeMillis() - SystemClock.elapsedRealtime();
         Log.d("fw", "boot: " + boot);
 
+
         try {
             entry = new JSONObject();
             entry.put("time", 0L);
@@ -87,6 +88,7 @@ public class MotionCaptureService extends Service implements SensorEventListener
         catch (JSONException e) {
             Log.d("UHOH", e.toString());
         }
+
 
         /****************  Start listening for sensor events.  *****************************/
 
@@ -162,11 +164,19 @@ public class MotionCaptureService extends Service implements SensorEventListener
                 timestamp = event.timestamp * 1000000L;
 
 
-            if (timestamp != entry.getLong("time")) {
-                entry = new JSONObject();
-                entry.put("time", timestamp);
-                entry.put("deviceID", deviceID);
+            long last = entry.getLong("time");
+
+
+            if (timestamp != last && last != 0) {
+                try {
+                    queue.add(new JSONObject(entry.toString()));
+                } catch (JSONException e) {
+                    Log.d("UHOH", e.toString());
+                }
             }
+
+            entry.put("time", timestamp);
+            entry.put("deviceID", deviceID);
 
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_ACCELEROMETER:
@@ -186,7 +196,7 @@ public class MotionCaptureService extends Service implements SensorEventListener
                     break;
             }
 
-            queue.add(entry);
+            //queue.add(entry);
 
             if (bound) {
                 while (!queue.isEmpty())
