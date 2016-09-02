@@ -1,0 +1,25 @@
+function i = binary(timelist, time)
+disp('timelist')
+disp(timelist)
+disp('time')
+disp(time)
+
+len = length(timelist);
+index = floor(len/2);
+
+if (len == 1)
+    disp('condition1, return 1')
+    if
+    i = 1;
+elseif (timelist(index) == time)
+    disp('condition2, return index directly')
+    i = index;
+else
+    if time > timelist(index)
+        disp('condition3')
+        i = index + binary(timelist(index+1:length(timelist)), time);
+    else
+        disp('condition4')
+        i = binary(timelist(1:index-1), time);
+    end
+end

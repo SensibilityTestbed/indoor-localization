@@ -1,0 +1,15 @@
+function i = binary(timelist, time, length)
+
+index = floor(length/2);
+
+if (index == 1)
+    i = index;
+elseif (experiment_time(index) == time)
+    i = index;
+else
+    if time > experiment_time(index)
+        i = binary(timelist(index+1:length(timelist)), time, length/2);
+    else
+        i = binary(timelist(1:index-1), time, length/2);
+    end
+end

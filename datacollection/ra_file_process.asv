@@ -6,7 +6,7 @@ close all;
 
 
 %% File loading
-filename = 'yanyan\raw\yanyan_c1.csv';
+filename = 'jessica\raw\jessica_call6.csv';
 
 data = csvread(filename,1,0);
 count = 1:length(data); % setup counter array
@@ -27,3 +27,7 @@ subplot(2,1,1)
 plot(count, magNoG);
 subplot(2,1,2)
 plot(time, magNoG);
+
+m = ['time' time'; 'ax' ax'; 5 10 15 20 25; ...
+     7 14 21 28 35; 11 22 33 44 55];
+writecsv()

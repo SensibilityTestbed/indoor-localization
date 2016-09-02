@@ -1,0 +1,215 @@
+
+% clear all data
+clear all;
+close all;
+
+
+
+% Initial setup
+
+Dsize = 200; % DTW window size, in experiment should be 200 ~ 500
+DTW_threshold = 100; % DTW coeefficient > 100 = irrelevant
+
+
+D = [];
+DQ = [];
+
+mean_D = [];
+mean_DQ = [];
+
+
+%% File loading
+
+namestring1 = '_ref.csv'; 
+nameQstring1 = '_ref_q.csv';
+namestringR1 = '_ref.csv';
+nameQstringR1 = '_ref_q.csv';
+
+% File load
+for s_d = {'call','hand', 't'}
+%for s_d = {'hand'}
+    string = char(s_d);
+    namestring = ['hannah\ref\hannah_' string];
+    nameQstring = ['hannah\quarternion_ref\hannah_' string];
+    
+    %for s_r = {'b', 'call', 't'}
+    for s_r = {'call','hand','t'}    
+        string = char(s_r);
+        namestringR = ['yanyan\ref\yanyan_' string];
+        nameQstringR = ['yanyan\quarternion_ref\yanyan_' string];
+
+
+        for tt = {'1','2','3','4','5'}
+            string = char(tt);
+            filename = [namestring string namestring1]
+            filenameQ = [nameQstring string nameQstring1]
+
+            for kk = {'1','2','3','4','5'}
+                string = char(kk);
+                filenameR = [namestringR string namestringR1] % ref file
+                filenameQR =[nameQstringR string nameQstringR1] %ref file quaternion
+
+
+
+                %% Raw data processing
+                % Still failed to write into function, can not return an array
+
+                % DTW reference data for trousers
+                % Only need accelerometer's data
+                dataR = csvread(filenameR,1,0); % all reference file saved as csv
+
+                % Accelerometer data
+                axR = dataR(:,2); % For better DTW result, reading data length same as window size
+                ayR = dataR(:,3);
+                azR = dataR(:,4);
+
+                % Magnititude of acceleration of reference file
+                magR = sqrt(axR.^2+ayR.^2+azR.^2);
+
+                % Non-gravity magnititude of accleration
+                magNoGR = magR - mean(magR);
+
+
+                % Experiment data load
+                data = csvread(filename,1,0);
+                count = 1:length(data); % setup counter array
+                time = data(:,1) * 10^-9; % each sample's collect time
+                ax = data(:,2); % accelerometer x-axis
+                ay = data(:,3); % accelerometer y-axis
+                az = data(:,4); % accelerometer z-axis
+
+                % Magnititude of acceleration data from experiment data
+                mag = sqrt(ax.^2+ay.^2+az.^2);
+                % Non-gravity of acceleration
+                magNoG = mag - mean(mag);
+
+
+                % Samping frequency of experiment
+                Fs = length(time) / (time(length(time)) - time(1));
+
+
+
+                %% Quaternion file processing
+
+                data_q = csvread(filenameQ,1,0);
+
+                % Read quaternion data
+                x = data_q(:,1); 
+                y = data_q(:,2);
+                z = data_q(:,3);
+                s = data_q(:,4);
+
+                % Normalization
+                for i = 1: length(x)
+                    sum_temp = x(i).^2 + y(i).^2 + z(i).^2;
+                    if sum_temp ~= 1.0
+                        x(i) = (1.0/sum_temp).^0.5 * x(i);
+                        y(i) = (1.0/sum_temp).^0.5 * y(i);
+                        z(i) = (1.0/sum_temp).^0.5 * z(i);
+                    end
+                end
+
+
+
+                data_qr = csvread(filenameQR,1,0);
+
+                % Read quaternion data
+                xr = data_qr(:,1); 
+                yr = data_qr(:,2);
+                zr = data_qr(:,3);
+                sr = data_qr(:,4);
+
+
+                % Normalization
+                for i = 1: length(xr)
+                    sum_temp = xr(i).^2 + yr(i).^2 + zr(i).^2;
+                    if sum_temp ~= 1.0
+                        xr(i) = (1.0/sum_temp).^0.5 * xr(i);
+                        yr(i) = (1.0/sum_temp).^0.5 * yr(i);
+                        zr(i) = (1.0/sum_temp).^0.5 * zr(i);
+                    end
+                end
+
+
+                %% Low pass filter Filter
+                % All experiment data and reference data go through the same
+                % lowpass fileter
+
+                % Low pass filter
+                Flp=3; % low pass filter cutofff frequency 0.8HZ
+                [b,a]=butter(5,Flp*2/Fs,'low'); % Butter lowpass filter setup
+
+                % Still failed to write these in functions
+                % filtfilt function to cutoff the initial bias of filter
+
+                LPFmag = filtfilt(b,a,magNoG); % LPF output of non-g magnititude of acceleration
+                LPFmagR = filtfilt(b,a,magNoGR); % LPF output of non-g magnititude of Trouseres reference acceleration
+
+
+
+
+                %% Moving average filter
+                % Experiment data also go throught the moving average filter
+                % Window size settup as 4
+                a = 4;
+                b = ones(1, a)/a;
+
+                % Moving average filtering
+
+                filteredMagNoG = filter(b, a, LPFmag);
+                filteredMagNoGR = filter(b, a, LPFmagR);
+
+
+                %% Dynamic Time Warping for total file
+
+
+                D = [D, dtw(filteredMagNoG, filteredMagNoGR)];
+
+                DQ = [DQ, dtw([x,y,z],[xr,yr,zr])];
+
+                %% Dynamic Time Warping for pieces
+                % Repeated compare the experiment data with reference data with samle
+                % length, and save in two list
+
+
+                %{
+                DistListT = [];
+                DistListH = [];
+
+                % get DTW coefficients
+                % for example, the length of experiment data is 2600, and Dsize = 500, 
+                % then the for loop will run 5 times, cover 1-2500 samples 
+
+
+
+
+                for i = 1: (floor(length(magNoG)/Dsize)) 
+                    DT=dtw(filteredMagNoG(((i-1)*Dsize+1) : i*Dsize), filteredMagNoGRT);
+                    DH=dtw(filteredMagNoG(((i-1)*Dsize+1) : i*Dsize), filteredMagNoGRH);
+                    DistListT = [DistListT, DT];
+                    DistListH = [DistListH, DH];
+                end
+
+                % get rest DTW coefficients
+                % for above example, below codes get rest 100 samples DTW coefficients
+                DT=dtw(filteredMagNoG((floor(length(magNoG)/Dsize))*Dsize+1 : length(magNoG)), filteredMagNoGRT);
+                DH=dtw(filteredMagNoG((floor(length(magNoG)/Dsize))*Dsize+1 : length(magNoG)), filteredMagNoGRH);
+                DistListT = [DistListT, DT];
+                DistListH = [DistListH, DH];
+
+                %}
+            end
+        end
+        avg_D = mean(D);
+        avg_DQ = mean(DQ);
+        mean_D = [mean_D, avg_D];
+        mean_DQ = [mean_DQ, avg_DQ];
+        D = [];
+        DQ = [];
+    end
+end
+
+mean_D
+mean_DQ
+ 
+
