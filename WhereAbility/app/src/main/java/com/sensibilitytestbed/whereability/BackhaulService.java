@@ -3,8 +3,12 @@
             BackhaulService.java
 
         <Purpose>
-            A background service that backhauls data sent to
-            it by other activities to a remote server.
+            A background service that manages multiple threads
+            which backhaul data sent to this service by the
+            MotionCaptureService. For every experiment (i.e.
+            multiple experiments can be initiated via different
+            QR codes), one thread is created which will backhaul
+            sensor data to the experiment's storage path.
  */
 
 package com.sensibilitytestbed.whereability;
@@ -14,23 +18,17 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+
+import java.util.HashMap;
+
+
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -39,157 +37,29 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class BackhaulService extends Service {
 
-    public static final int BATCH_SIZE = 500;
-    private static final String[] KEYS = {
-            "time", "deviceID",
-            "height", "location",
-            "ax", "ay", "az",
-            "gx", "gy", "gz",
-            "mx", "my", "mz"
-    };
-
-    private BlockingQueue queue = new LinkedBlockingQueue();
     private BackhaulBinder mBinder = new BackhaulBinder();
-    private boolean started = false, done = false, online = false;
-    private JSONArray batch = new JSONArray();
-    private Lock lock = new ReentrantLock(), doneLock = new ReentrantLock(), onlineLock = new ReentrantLock();
-    private Condition notFull = lock.newCondition(), notDone = doneLock.newCondition();
-    private ConnectivityManager mConnectivityManager;
-    private NetworkInfo mActiveNetwork;
-    private FileWriter fileWriter;
+    private ConnectivityManager connManager;
+    private Lock lock = new ReentrantLock();
+    private Lock doneLock = new ReentrantLock();
+    private Condition notDone = doneLock.newCondition();
+    private int numThreads = 0;
+    private HashMap<String, Backhauler> backhaulers;
+
 
     @Override
     public void onCreate() {
         super.onCreate();
-
-        mConnectivityManager = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
-        mActiveNetwork = mConnectivityManager.getActiveNetworkInfo();
-
-        started = true;
-
-        new Thread(new Runnable() {
-            public void run() {
-                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
-
-                // Keep backhauling until told to stop
-                // and the buffer is empty.
-                while (started || !queue.isEmpty()) {
-
-                    lock.lock();
-                    try {
-                        // Wait until there's a full batch or the
-                        // service has been told to stop.
-                        while (queue.size() < BATCH_SIZE && started)
-                            notFull.await();
-                    } catch (InterruptedException e) {
-
-                    } finally {
-                        lock.unlock();
-                    }
-
-
-                    // Consume the next batch of entries (i.e. measurements).
-                    while (batch.length() < BATCH_SIZE && !queue.isEmpty()) {
-                        try {
-                            batch.put(queue.take());
-                        } catch (InterruptedException e) {
-                        }
-                    }
-
-
-                    onlineLock.lock();
-                    boolean onlineVal = online;
-                    onlineLock.unlock();
-
-                    if (online) {
-                        // Sleep until there's Internet connectivity.
-                        while (mActiveNetwork == null || !mActiveNetwork.isConnectedOrConnecting()) {
-                            if (mActiveNetwork == null)
-                                mActiveNetwork = mConnectivityManager.getActiveNetworkInfo();
-                            try {
-                                Thread.sleep(5000);
-                            } catch (InterruptedException e) {
-                            }
-                        }
-
-
-                        // Send the batch to the server
-                        try {
-                            // Connect to sensevis
-                            String body = getSharedPreferences(MainActivity.SETUP, MODE_PRIVATE).getString("DATABASE", "") + batch.toString();
-                            URL url = new URL("http://sensevis.poly.edu/backhaul");
-                            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
-                            // Declare message as POST
-                            conn.setDoOutput(true);
-
-                            // Declare length of packet body
-                            conn.setFixedLengthStreamingMode(body.length());
-
-                            // Send the data
-                            OutputStream ostream = new BufferedOutputStream(conn.getOutputStream());
-                            ostream.write(body.getBytes());
-                            ostream.flush();
-
-                            // Did the message go through?
-                            if (conn.getResponseCode() > 299)
-                                replace(batch);
-
-                            conn.disconnect();
-
-                        } catch (IOException e) {
-                            // Lost connection to the server.
-                            // Try again in next go around.
-                            replace(batch);
-                        }
-                    }
-                    else {
-                        for (int i=0; i<batch.length(); i++) {
-                            JSONObject row;
-                            try {
-                                row = (JSONObject) batch.get(i);
-                            } catch (JSONException e) {
-                                Log.d("UHOH", e.toString());
-                                continue;
-                            }
-                            String csv = "";
-                            for (int k=0; k<KEYS.length; k++) {
-                                try {
-                                    csv += "" + row.get(KEYS[k]) + ",";
-                                } catch (JSONException e) {
-                                    csv += ",";
-                                }
-                            }
-                            csv += "\n";
-                            try {
-                                fileWriter.write(csv);
-                            }
-                            catch (IOException e) {
-                                Log.d("fw", e.toString());
-                            }
-                        }
-                    }
-                    batch = new JSONArray();
-                }
-
-                // Finished backhauling, so signal
-                // that it's okay to destroy the service.
-                doneLock.lock();
-                try {
-                    done = true;
-                    notDone.signal();
-                } finally {
-                    doneLock.unlock();
-                }
-
-                Log.d("fw", "done");
-
-            }
-        }).start();
-        Log.d("fw", "create");
+        connManager = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
+        backhaulers = new HashMap();
     }
 
 
+    @Override
+    public void onDestroy() {
+        stopBackhauling();
+        Log.d("WhereAbility", "BackhaulService destroyed!");
+        super.onDestroy();
+    }
 
 
     @Override
@@ -204,106 +74,134 @@ public class BackhaulService extends Service {
     }
 
 
+    public void stopBackhauling() {
+        Log.d("WhereAbility", "In stopBackhauling()");
+
+        lock.lock();
+        try {
+            for (Backhauler backhauler: backhaulers.values())
+                backhauler.kill();
+        }
+        finally {
+            lock.unlock();
+        }
+
+
+        Log.d("WhereAbility", "Threads killed");
+        // Don't let the service die until all the
+        // backhauling threads have died.
+        doneLock.lock();
+        try {
+            while(numThreads > 0)
+                notDone.await();
+        }
+        catch(InterruptedException e) {
+            Log.d("WhereAbility", "stopBackhauling()", e);
+        }
+        finally {
+            doneLock.unlock();
+        }
+
+        Log.d("WhereAbility", "End of stopBackhauling()");
+    }
 
 
     // Interface for other activities to backhaul data
     public void put(JSONObject entry) {
-        try {
-            if (queue.size() > 600000)
-                return;
-            queue.put(entry);
-        } catch (InterruptedException e) {
-          // Move on (i.e. toss entry) even if we failed to insert it,
-          // so we don't keep blocking the sensor service.
-        }
-
         lock.lock();
         try {
-            // Signal consumer (network) thread
-            // when to send another packet.
-            if (queue.size() >= BATCH_SIZE)
-                notFull.signal();
-        } finally {
+            for (Backhauler backhauler : backhaulers.values())
+                backhauler.put(entry);
+        }
+        finally {
             lock.unlock();
         }
     }
 
 
+    public void addPath(String path, boolean online) {
 
-    public void setOnline(boolean status, String filename) {
-        Log.d("fw", "online: " + status + ", path: " + filename);
-        onlineLock.lock();
-        online = status;
-        try {
-            if (fileWriter != null)
-                fileWriter.close();
-            if (online)
-                fileWriter = null;
-            else {
-                fileWriter = new FileWriter(filename);
-                fileWriter.write("time,deviceID,height,location,ax,ay,az,gx,gy,gz,mx,my,mz\n");
+        /*
+        Backhauler backhauler = getBackhauler(path);
+        // Are we already writing to this path locally?
+        if (!online && backhauler != null) {
+            backhauler.kill();
+            doneLock.lock();
+            try {
+                // Wait for the backhauler thread to die
+                while(backhauler.isAlive())
+                    notDone.await();
+            } catch (InterruptedException e) {
+                Log.d("WhereAbility", "addPath()", e);
+            } finally {
+                doneLock.unlock();
             }
         }
-        catch (IOException e) { Log.d("fw", e.toString()); }
-        onlineLock.unlock();
-        if (fileWriter != null)
-            Log.d("fw", "not null");
+        */
+
+        Backhauler backhauler;
+        if(online)
+            backhauler = new RemoteStore(path, this, connManager);
         else
-            Log.d("fw", "null");
-    }
+            backhauler = new LocalStore(path, this);
 
-
-
-
-    private void replace(JSONArray array) {
-        try {
-            for (int i=0; i < array.length(); i++)
-                queue.put(array.get(i));
-        } catch (Exception e) {
-
-        }
-    }
-
-
-
-
-    @Override
-    public void onDestroy() {
-        Log.d("fw", "destroy!");
+        boolean inc = true;
 
         lock.lock();
         try {
-            // Tell the backhauling
-            // thread to finish up.
-            started = false;
-            notFull.signal();
-        } finally {
+
+            /*if(!backhaulers.containsKey(path)) {
+                backhaulers.put(path, backhauler);
+                */
+            if(backhaulers.containsKey(path))
+                inc = false;
+
+
+            backhaulers.put(path, backhauler);
+        }
+        finally {
             lock.unlock();
         }
+        new Thread(backhauler).start();
 
-
-        // Don't let the service die until the
-        // buffer has been completely backhauled.
-        doneLock.lock();
-        try {
-            while (!done)
-                notDone.await();
-        } catch (InterruptedException e) {
-
-        } finally {
+        if(inc) {
+            doneLock.lock();
+            numThreads++;
             doneLock.unlock();
         }
-
-        try {
-            if (fileWriter != null) {
-                fileWriter.close();
-            }
-
-        }
-        catch (IOException e) { Log.d("UHOH", e.toString()); }
-
-        Log.d("fw", "dead");
-
-        super.onDestroy();
     }
+
+
+    /*
+    private Backhauler getBackhauler(String path) {
+        lock.lock();
+        try {
+            if (backhaulers.containsKey(path))
+                return backhaulers.get(path);
+            else
+                return null;
+        }
+        finally {
+            lock.unlock();
+        }
+    }
+    */
+
+
+
+    public void signalDone() {
+        Log.d("WhereAbility", "Thread done");
+        doneLock.lock();
+        try {
+            numThreads--;
+            // Kill the service once all
+            // threads have finished
+            if(numThreads == 0)
+                notDone.signal();
+        }
+        finally {
+            doneLock.unlock();
+        }
+    }
+
 }

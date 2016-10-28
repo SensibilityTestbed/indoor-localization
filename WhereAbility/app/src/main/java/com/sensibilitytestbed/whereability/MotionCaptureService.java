@@ -2,10 +2,13 @@
         <Program Name>
             MotionCaptureService.java
 
+        <Author>
+            Seth Miller
+
         <Purpose>
             Captures inertial and magnetic sensor data in the background,
             and sends it to another background service for backhauling to
-            a remote server.
+            either a remote server or local storage.
  */
 
 
@@ -31,9 +34,6 @@ import org.json.JSONObject;
 
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 
 public class MotionCaptureService extends Service implements SensorEventListener{
@@ -45,7 +45,7 @@ public class MotionCaptureService extends Service implements SensorEventListener
     private boolean bound = false;
     private long boot = 0;
     private JSONObject entry;
-    private Queue<JSONObject> queue = new LinkedList<JSONObject>();
+    private Queue<JSONObject> queue = new LinkedList<>();
 
 
     @Override
@@ -64,10 +64,7 @@ public class MotionCaptureService extends Service implements SensorEventListener
             }
 
             @Override
-            public void onServiceDisconnected(ComponentName name) {
-                Log.d("MOCAP", "unbound");
-                bound = false;
-            }
+            public void onServiceDisconnected(ComponentName name) { bound = false; }
         };
         Intent backhaulIntent = new Intent(this, BackhaulService.class);
         bindService(backhaulIntent, mBackhaulConnection, Context.BIND_AUTO_CREATE);
@@ -78,7 +75,6 @@ public class MotionCaptureService extends Service implements SensorEventListener
 
 
         boot = System.currentTimeMillis() - SystemClock.elapsedRealtime();
-        Log.d("fw", "boot: " + boot);
 
 
         try {
@@ -86,7 +82,7 @@ public class MotionCaptureService extends Service implements SensorEventListener
             entry.put("time", 0L);
         }
         catch (JSONException e) {
-            Log.d("UHOH", e.toString());
+            Log.d("WhereAbility", "onStartCommand()", e);
         }
 
 
@@ -122,6 +118,8 @@ public class MotionCaptureService extends Service implements SensorEventListener
         // Something (i.e. user or system) told us to stop...
         mSensorManager.unregisterListener(this);
         // Tell the backhauling service to stop.
+        Log.d("WhereAbility", "Sensors turned off");
+        mBackhaulService.stopBackhauling();
         unbindService(mBackhaulConnection);
 
         super.onDestroy();
@@ -143,7 +141,6 @@ public class MotionCaptureService extends Service implements SensorEventListener
     @Override
     public void onSensorChanged(SensorEvent event) {
         try {
-
             long elapsed = SystemClock.elapsedRealtime();
             long timestamp;
 
@@ -167,16 +164,17 @@ public class MotionCaptureService extends Service implements SensorEventListener
             long last = entry.getLong("time");
 
 
-            if (timestamp != last && last != 0) {
-                try {
-                    queue.add(new JSONObject(entry.toString()));
-                } catch (JSONException e) {
-                    Log.d("UHOH", e.toString());
+            if (timestamp != last) {
+                if (last != 0) {
+                    try {
+                        queue.add(new JSONObject(entry.toString()));
+                    } catch (JSONException e) {
+                        Log.d("WhereAbility", "onSensorChanged()", e);
+                    }
                 }
+                entry.put("time", timestamp);
+                entry.put("deviceID", deviceID);
             }
-
-            entry.put("time", timestamp);
-            entry.put("deviceID", deviceID);
 
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_ACCELEROMETER:
@@ -196,15 +194,13 @@ public class MotionCaptureService extends Service implements SensorEventListener
                     break;
             }
 
-            //queue.add(entry);
-
             if (bound) {
                 while (!queue.isEmpty())
                     mBackhaulService.put(queue.remove());
             }
 
         } catch (Exception e) {
-            Log.d("fw", e.toString());
+            Log.d("WhereAbility", "onSensorChanged()", e);
         }
 
     }

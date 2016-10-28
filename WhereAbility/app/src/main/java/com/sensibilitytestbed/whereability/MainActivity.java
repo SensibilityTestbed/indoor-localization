@@ -2,13 +2,16 @@
         <Program Name>
             MainActivity.java
 
+        <Author>
+            Seth Miller
+
         <Purpose>
             This activity provides a GUI for stopping and starting
             background services that collect and backhaul sensor data.
             It also provides a button for starting an activity to scan
             QR encoded locations. These ground truth locations are
             intended to be combined with inertial sensor data for the
-            purpose of indoor localization (although not in this app).
+            purpose of indoor localization (although not within this app).
  */
 
 package com.sensibilitytestbed.whereability;
@@ -26,7 +29,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
-import android.os.Environment;
 import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -34,8 +36,6 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v4.app.NotificationCompat;
-import android.support.v7.widget.Toolbar;
-import android.text.Editable;
 import android.text.Html;
 import android.util.Log;
 import android.view.MenuItem;
@@ -54,10 +54,6 @@ import com.google.zxing.integration.android.IntentResult;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -68,26 +64,26 @@ public class MainActivity extends AppCompatActivity {
     public static final String SETUP = "setup_prefs";
     public static final String DEVICE_ID = "deviceID";
     public static final String HEIGHT = "height_cm";
-    public static final String HEIGHT_SENT = "height_sent";
     public static final String STARTED = "mocap_started";
     public static final String SCANNED = "scanned";
+    public static final String ONLINE = "online";
+    public static final String QR = "qr";
+    public static final String PATH = "path";
 
     private Switch mSwitch, onlineSwitch, qrSwitch;
     private EditText path, location;
     private TextView loclabel, pathlabel;
     private Button button;
-    private boolean started = false, bound = false, scanned = false, fromCode = false;
-    private String mDatabase = "";
+    private boolean started = false, bound = false, scanned = false;
     private int deviceID = -1;
     private float height = -1;
     private ServiceConnection mBackhaulConnection;
     private BackhaulService mBackhaulService;
     private Lock lock = new ReentrantLock();
     private Condition notBound = lock.newCondition();
-    private Intent mocapIntent, backhaulIntent;
+    private Intent mocapIntent;
     private Notification mNotification;
     private NotificationManager mNotificationManager;
-
 
 
     @Override
@@ -103,23 +99,20 @@ public class MainActivity extends AppCompatActivity {
         if (height < 0 || deviceID < 0) {
             startActivity(new Intent(this, SetupActivity.class));
             finish();
-            Log.d("MAIN", "Went directly to Setup");
             return;
         }
-
-
 
 
         /*********  Prepare intents to start sensing and backhauling data in the background  ***********/
 
         mocapIntent = new Intent(this, MotionCaptureService.class);
-        backhaulIntent = new Intent(this, BackhaulService.class);
+        Intent backhaulIntent = new Intent(this, BackhaulService.class);
 
         // Android requires a connection to bind to the backhauling service to communicate.
         mBackhaulConnection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
-                Log.d("MAIN", "connected to service");
+                Log.d("WhereAbility", "Connected to BackaulService");
                 // Get a reference to the backhauling service to communicate with it.
                 BackhaulService.BackhaulBinder binder = (BackhaulService.BackhaulBinder) service;
                 mBackhaulService = binder.getService();
@@ -134,46 +127,11 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-                Log.d("fw", "unbound");
+                Log.d("WhereAbility", "Disconnected from BackhaulService");
                 bound = false;
             }
         };
         bindService(backhaulIntent, mBackhaulConnection, Context.BIND_AUTO_CREATE);
-
-
-
-        // Has the height been sent yet?
-        if (!setupPrefs.getBoolean(HEIGHT_SENT, false)) {
-
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
-                    lock.lock();
-                    try {
-                        while (!bound) {
-                            notBound.awaitUninterruptibly();
-                        }
-                    } finally {
-                        lock.unlock();
-                    }
-
-                    try {
-                        JSONObject entry = new JSONObject();
-                        entry.put("time", System.currentTimeMillis() * 1000000L).put("deviceID", deviceID).put("height", height);
-                        mBackhaulService.put(entry);
-
-                        SharedPreferences.Editor prefsEditor = getSharedPreferences(SETUP, MODE_PRIVATE).edit();
-                        prefsEditor.putBoolean(HEIGHT_SENT, true);
-                        prefsEditor.commit();
-                    } catch (Exception e) {
-                        // Shouldn't happen, right?
-                        Log.d("UHOH", e.toString());
-                    }
-                }
-            }).start();
-
-        }
 
 
         // Build the UI
@@ -181,24 +139,43 @@ public class MainActivity extends AppCompatActivity {
 
         // Setup Up navigation to the height activity
         ActionBar mActionBar = getSupportActionBar();
-        mActionBar.setDisplayHomeAsUpEnabled(true);
+        try {
+            mActionBar.setDisplayHomeAsUpEnabled(true);
 
-        final Drawable upArrow = ContextCompat.getDrawable(this, R.drawable.abc_ic_ab_back_mtrl_am_alpha);
-        upArrow.setColorFilter(ContextCompat.getColor(this, R.color.colorPrimaryDark), PorterDuff.Mode.SRC_ATOP);
-        mActionBar.setHomeAsUpIndicator(upArrow);
+            // draw the back arrow for navigation
+            final Drawable upArrow = ContextCompat.getDrawable(this, R.drawable.abc_ic_ab_back_mtrl_am_alpha);
+            upArrow.setColorFilter(ContextCompat.getColor(this, R.color.colorPrimaryDark), PorterDuff.Mode.SRC_ATOP);
+            mActionBar.setHomeAsUpIndicator(upArrow);
 
-        mActionBar.setTitle(Html.fromHtml("<font color='#000'> WhereAbility </font>"));
-
-
-        // Load previous UI state
-        if (savedInstanceState != null) {
-            started = savedInstanceState.getBoolean(STARTED, false);
-            bound = savedInstanceState.getBoolean(SCANNED, false);
+            // add style to the app title
+            mActionBar.setTitle(Html.fromHtml("<font color='#000'> WhereAbility </font>"));
+        } catch (NullPointerException e) {
+            Log.d("WhereAbility", "onCreate()", e);
         }
-        started = setupPrefs.getBoolean(STARTED, started);
-        scanned = setupPrefs.getBoolean(SCANNED, scanned);
 
 
+        onlineSwitch = (Switch) findViewById(R.id.switch2);
+        qrSwitch = (Switch) findViewById(R.id.switch3);
+        path = (EditText) findViewById(R.id.path);
+
+
+        // Load previous or saved UI state
+        /*if (savedInstanceState != null) {
+            started = savedInstanceState.getBoolean(STARTED, false);
+            scanned = savedInstanceState.getBoolean(SCANNED, false);
+            onlineSwitch.setChecked(savedInstanceState.getBoolean(ONLINE, false));
+            qrSwitch.setChecked(savedInstanceState.getBoolean(QR, false));
+            path.setText(savedInstanceState.getString(PATH, "sdcard/filename.csv"));
+        } else { */
+            started = setupPrefs.getBoolean(STARTED, started);
+            scanned = setupPrefs.getBoolean(SCANNED, scanned);
+            onlineSwitch.setChecked(setupPrefs.getBoolean(ONLINE, false));
+            qrSwitch.setChecked(setupPrefs.getBoolean(QR, false));
+            path.setText(setupPrefs.getString(PATH, path.getText().toString()));
+        //}
+
+        if (onlineSwitch.isChecked())
+            onlineSwitch.setText("ONLINE");
 
 
         /*******************  Build a notification, so the user is aware of background services  ***********************/
@@ -226,15 +203,18 @@ public class MainActivity extends AppCompatActivity {
         mNotification = mBuilder.build();
 
 
-
         /********************  Create the OFF switch to kill background services  *********************/
 
         mSwitch = (Switch) findViewById(R.id.switch1);
         // Switch should be created with last state
-        if (started)
+        if (started) {
             mSwitch.setText("SENSORS ON");
-        else
+            mSwitch.setChecked(true);
+            path.setClickable(false);
+        } else {
             mSwitch.setText("SENSORS OFF");
+            mSwitch.setChecked(false);
+        }
 
         mSwitch.setChecked(started);
 
@@ -243,29 +223,38 @@ public class MainActivity extends AppCompatActivity {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 // The user can't turn on background services via
                 // the OFF switch, because they haven't checked in yet.
-                if (isChecked && !scanned) {
-                    mSwitch.setChecked(false);
-                    if (qrSwitch.isChecked())
-                        Toast.makeText(getBaseContext(), "Please scan a QR code first.", Toast.LENGTH_LONG).show();
-                    else
-                        Toast.makeText(getBaseContext(), "Please enter your location first.", Toast.LENGTH_LONG).show();
+                try {
+                    if (isChecked && !scanned) {
+                        mSwitch.setChecked(false);
+                        if (qrSwitch.isChecked())
+                            Toast.makeText(getBaseContext(), "Please scan a QR code first.", Toast.LENGTH_LONG).show();
+                        else
+                            Toast.makeText(getBaseContext(), "Please enter your location first.", Toast.LENGTH_LONG).show();
 
-                } else if (!isChecked) {
-                    started = false;
-                    scanned = false;
-                    mSwitch.setText("SENSORS OFF");
-                    Toast.makeText(getBaseContext(), "Your data has been stored.", Toast.LENGTH_LONG).show();
+                    } else if (!isChecked) {
+                        started = false;
+                        scanned = false;
+                        mSwitch.setText("SENSORS OFF");
+                        path.setClickable(true);
+                        Toast.makeText(getBaseContext(), "Your data has been stored.", Toast.LENGTH_LONG).show();
 
 
-                    // Kill background services
-                    stopService(mocapIntent);
-                    if (bound) {
-                        unbindService(mBackhaulConnection);
-                        bound = false;
+                        // Turn off sensors
+                        stopService(mocapIntent);
+
+                        // Remove background services notification
+                        mNotificationManager.cancel(0);
+
+                        /*
+                        // Notify background backhauling service to finish up
+                        if (bound) {
+                            unbindService(mBackhaulConnection);
+                            bound = false;
+                        }
+                        */
                     }
-
-                    // Remove background services notification
-                    mNotificationManager.cancel(0);
+                } catch (Exception e) {
+                    Log.e("WhereAbility", "onCreate()", e);
                 }
             }
         });
@@ -273,7 +262,11 @@ public class MainActivity extends AppCompatActivity {
 
         pathlabel = (TextView) findViewById(R.id.pathlabel);
 
-        onlineSwitch = (Switch) findViewById(R.id.switch2);
+        if (onlineSwitch.isChecked())
+            onlineSwitch.setText("ONLINE");
+        else
+            onlineSwitch.setText("OFFLINE");
+
         onlineSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -281,25 +274,21 @@ public class MainActivity extends AppCompatActivity {
 
                     onlineSwitch.setText("ONLINE");
 
-                    Log.d("SWITCH", "ONLINE");
-                    mBackhaulService.setOnline(true, null);
+                    Log.d("WhereAbility", "Switch online");
 
                     if (qrSwitch.isChecked()) {
                         path.setVisibility(EditText.INVISIBLE);
                         pathlabel.setVisibility(TextView.INVISIBLE);
+                    } else {
+                        pathlabel.setText("Send to URL:");
+                        path.setText("");
                     }
-                    else {
-                        pathlabel.setText("Send to Sensevis path:");
-                        path.setText("username/experiment/dataset");
-                    }
-                }
-                else {
-                    Log.d("SWITCH", "OFFLINE");
-                    mBackhaulService.setOnline(false, "sdcard/" + path.getText().toString());
+                } else {
+                    Log.d("WhereAbility", "Switch offline");
                     onlineSwitch.setText("OFFLINE");
-                    pathlabel.setText("Save file as:");
+                    pathlabel.setText("Save as:");
                     pathlabel.setVisibility(TextView.VISIBLE);
-                    path.setText("filename.csv");
+                    path.setText("sdcard/filename.csv");
                     path.setVisibility(EditText.VISIBLE);
                 }
             }
@@ -313,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
         // Setup Check-in button
         button = (Button) findViewById(R.id.checkin);
 
-        final View.OnClickListener qrListener =  new View.OnClickListener() {
+        final View.OnClickListener qrListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 // Start QR code scanner
@@ -322,63 +311,33 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        final View.OnClickListener submitListener =  new View.OnClickListener() {
+        final View.OnClickListener submitListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
-                if (onlineSwitch.isChecked()) {
-
-                    String db = path.getText().toString();
-                    String[] strArray = db.split("/");
-                    db = "user=" + strArray[0] + "&exp=" + strArray[1] + "&set=" + strArray[2];
-
-                    if (!mDatabase.equals(db)) {
-                        SharedPreferences.Editor editor = getSharedPreferences(SETUP, MODE_PRIVATE).edit();
-                        editor.putString("DATABASE", db);
-                        editor.commit();
-                        mDatabase = db;
-                    }
-                }
-
-
-
+                Log.d("WhereAbility", "Submit location");
                 long timestamp = System.currentTimeMillis() * 1000000L;
                 try {
                     store(timestamp, new JSONObject("{'location':" + location.getText() + "}"));
+                } catch (JSONException e) {
+                    Log.d("WhereAbility", "onCreate()", e);
                 }
-                catch (JSONException e) { Log.d("UHOH", e.toString()); }
             }
         };
 
         button.setOnClickListener(submitListener);
 
 
+        if (qrSwitch.isChecked()) {
+            setQrChecked(qrListener);
+        }
 
-        path = (EditText) findViewById(R.id.path);
-
-        qrSwitch = (Switch) findViewById(R.id.switch3);
         qrSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                /*if (mSwitch.isChecked()) {
-                    qrSwitch.setChecked(!isChecked);
-                    return;
-                }*/
                 if (isChecked) {
 
-                    qrSwitch.setText("QR ON");
-
-                    button.setText("SCAN QR CODE");
-                    button.setOnClickListener(qrListener);
-
-                    loclabel.setVisibility(TextView.INVISIBLE);
-                    location.setVisibility(EditText.INVISIBLE);
-
-                    if (onlineSwitch.isChecked()) {
-                        pathlabel.setVisibility(TextView.INVISIBLE);
-                        path.setVisibility(EditText.INVISIBLE);
-                    }
+                    setQrChecked(qrListener);
 
                 } else {
                     qrSwitch.setText("QR OFF");
@@ -390,8 +349,8 @@ public class MainActivity extends AppCompatActivity {
                     location.setVisibility(EditText.VISIBLE);
 
                     if (onlineSwitch.isChecked()) {
-                        pathlabel.setText("Send to Sensevis path:");
-                        path.setText("username/experiment/dataset");
+                        pathlabel.setText("Send to URL:");
+                        path.setText("");
                     }
 
                     pathlabel.setVisibility(TextView.VISIBLE);
@@ -404,23 +363,40 @@ public class MainActivity extends AppCompatActivity {
         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
     }
 
+    private void setQrChecked(View.OnClickListener qrListener) {
+
+        qrSwitch.setText("QR ON");
+
+        button.setText("SCAN QR CODE");
+        button.setOnClickListener(qrListener);
+
+        loclabel.setVisibility(TextView.INVISIBLE);
+        location.setVisibility(EditText.INVISIBLE);
+
+        if(onlineSwitch.isChecked())
+
+        {
+            pathlabel.setVisibility(TextView.INVISIBLE);
+            path.setVisibility(EditText.INVISIBLE);
+        }
+
+    }
 
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
             case 0: {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.d("PERMS", "Yay, we can write. :P");
+                    Log.d("WhereAbility", "Write permission granted");
                 }
-                return;
+                break;
             }
         }
     }
 
-
-
-
     private void store(long timestamp, JSONObject data) {
+
+        Log.d("WhereAbility", "In store()");
 
         if (!bound)
             bindService(new Intent(this, BackhaulService.class), mBackhaulConnection, Context.BIND_AUTO_CREATE);
@@ -442,18 +418,20 @@ public class MainActivity extends AppCompatActivity {
                         lock.unlock();
                     }
 
-                    if (!started && !onlineSwitch.isChecked()) {
-                        mBackhaulService.setOnline(false, "sdcard/" + path.getText().toString());
+                    if (!started) {
                         try {
+                            mBackhaulService.addPath(path.getText().toString(), onlineSwitch.isChecked());
                             entry.put("height", height);
                         }
-                        catch (JSONException e) { Log.d("UHOH", e.toString()); }
+                        catch(JSONException e) {
+                            Log.d("WhereAbility", "store()", e);
+                        }
                     }
 
                     try {
                         mBackhaulService.put(entry);
                     } catch (Exception e) {
-                        Log.d("UHOH",e.toString());
+                        Log.d("WhereAbility", "store()", e);
                     }
                 }
             }).start();
@@ -469,6 +447,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        Log.d("WhereAbility", "Created thread in store()");
+
 
         Toast.makeText(this, "Location saved", Toast.LENGTH_SHORT).show();
         scanned = true;
@@ -482,11 +462,16 @@ public class MainActivity extends AppCompatActivity {
             mSwitch.setText("SENSORS ON");
             mSwitch.setChecked(true);
 
+            // path shouldn't change while running
+            path.setClickable(false);
+
             // Show the user a persistent notification,
             // telling them background services are running.
             mNotificationManager.notify(0, mNotification);
 
         }
+
+        Log.d("WhereAbility", "End of store()");
     }
 
 
@@ -502,21 +487,14 @@ public class MainActivity extends AppCompatActivity {
 
                 String contents = result.getContents();
                 if (contents != null) {
-
                     JSONObject qrData = new JSONObject(contents);
-                    String database = qrData.getString("database");
-                    if (!mDatabase.equals(database)) {
-                        SharedPreferences.Editor editor = getSharedPreferences(SETUP, MODE_PRIVATE).edit();
-                        editor.putString("DATABASE", database);
-                        editor.commit();
-                    }
 
                     store(timestamp, qrData.getJSONObject("data"));
                     return;
                 }
             }
         }
-        catch (Exception e) { Log.d("UHOH", e.toString()); }
+        catch (Exception e) { Log.d("WhereAbility", "onActivityResult()", e); }
         // Tell the user the scan failed
         Toast.makeText(this, "Please re-scan", Toast.LENGTH_LONG).show();
 
@@ -528,10 +506,13 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onSaveInstanceState(Bundle savedInstanceState) {
-        Log.d("END", "SAVE");
+        Log.d("WhereAbility", "Save state");
         // Save the UI state
         savedInstanceState.putBoolean(STARTED, started);
         savedInstanceState.putBoolean(SCANNED, scanned);
+        savedInstanceState.putBoolean(ONLINE, onlineSwitch.isChecked());
+        savedInstanceState.putBoolean(QR, qrSwitch.isChecked());
+        savedInstanceState.putString(PATH, path.getText().toString());
 
         super.onSaveInstanceState(savedInstanceState);
     }
@@ -547,7 +528,16 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences.Editor editor = getSharedPreferences(SETUP, MODE_PRIVATE).edit();
         editor.putBoolean(STARTED, started);
         editor.putBoolean(SCANNED, scanned);
-        editor.commit();
+        try {
+            editor.putBoolean(ONLINE, onlineSwitch.isChecked());
+            editor.putBoolean(QR, qrSwitch.isChecked());
+            editor.putString(PATH, path.getText().toString());
+        } catch (NullPointerException e) {
+            editor.putBoolean(ONLINE, false);
+            editor.putBoolean(QR, false);
+            editor.putString(PATH, "sdcard/filename.csv");
+        }
+        editor.apply();
 
         super.onDestroy();
     }
