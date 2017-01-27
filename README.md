@@ -22,3 +22,5 @@ while True:
   nav.navigate(getsensors())
   # log the new position
   log(nav.get_coordinates(), '\n'))
+
+Collected Data: https://drive.google.com/drive/u/0/folders/0B6WOejI_hzK7aGl2U0RGYmFwLTA
