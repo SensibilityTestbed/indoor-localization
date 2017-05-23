@@ -101,6 +101,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Continue"
+        android:backgroundTint="#ffd033"
         android:id="@+id/continueButton"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true" />

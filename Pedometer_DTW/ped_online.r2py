@@ -1,0 +1,319 @@
+
+"""
+<Program Name>
+  pedometer.r2py
+<Purpose>
+  This is a script for walking step counter. Analysis of the sensor data 
+  from accelerometer to detect the walking / running steps. Introducing
+  pre-calibration stage, noise level threshold and moving average filter
+  to accurate step detection for difference devices.
+  *Note: the device must be stable for 1 second pre-calibration from beginning
+"""
+
+dy_import_module_symbols('getsensor.r2py')
+dy_import_module_symbols('pre_online.r2py') #precalibration file
+hanning = dy_import_module('moving_average_hanning.r2py')
+butterworth = dy_import_module('butterworth.r2py') #butterworth is used to filter things out
+dy_import_module_symbols('dtw.r2py')
+
+# constants for pre-calibratino stage
+PRE_LEARN_SAMPLE_NUMBER = 100
+ZERO_INTERVAL = 0.4                 # Minimum time difference between each step in senconds
+PEAK_INTERVAL = 0.5
+WINDOW_SIZE = 200
+DTW_threshold = 200.0
+datakeys = ['time', 'ax', 'ay', 'az', 'gx', 'gy', 'gz', 'mx', 'my', 'mz']
+# Peodmeter class, includes filtering raw data and step estimation
+def import_csv(filename):
+  data = []
+  fh = openfile(filename, False)
+  fstr = fh.readat(None, 0)
+  fstr = fstr[fstr.find('\n')+1:-1]
+  for line in fstr.split('\n'):
+    strdata = line.split(',')
+    zipped = zip(datakeys, strdata)
+    entry = {}
+    for key, value in zipped:
+      entry[key] = float(value)
+    data.append(entry)
+  return data
+class Pedometer:
+  def __init__(self, precalibration, height):
+    # Coefficient from pre-calibration stage
+    self.gravity_constant = precalibration.get_gravity() #Gravity which is relatively 9.8
+    self.samplerate = precalibration.get_sample_rate() #how fast the phone is obtaining the samples
+    self.threshold = precalibration.get_threshold() #the threshold is the different noise level. 
+    #The threshold shouldn't be negative. if it is less than 0.15, we just consider it as 0.15
+    if self.threshold < 0.15:
+      self.threshold = 0.15
+    self.steptime = precalibration.time
+
+    # Initialize moving average filter
+
+ 
+    self.maf = hanning.HanningFilter(precalibration.time, 0.125) #hanning filter = moving average filter 
+
+
+    # Initialize low pass filter
+    #Creates two filters, low and high 
+    self.lpf = butterworth.ButterworthFilter("low", 4.0,  24.7891010566, precalibration.time, 0.125)
+
+    self.hpf = butterworth.ButterworthFilter("high", 0.1, self.samplerate, precalibration.time, 0.125)
+
+
+    self.height = height
+
+    self.zerocount = 0
+    self.lastmag = 0.0
+    self.peakcount = 0
+    self.peak_window_start = self.steptime
+    self.maglist = []
+    self.timelist = []
+    self.raw_mag = []
+    self.max_mag = self.threshold
+    self.max_time = self.peak_window_start
+    self.last_peak_time = self.max_time
+    self.flag = 1
+
+    self.distance_zero = []
+    self.time_zero = []
+    self.distance_peak = []
+    self.time_peak = []
+
+    self.acc_for_method = []
+    self.carrying_flag = 5
+
+    self.motion_flag = 0
+
+    self.moving_freq = 0.0
+    self.window_count = 1
+
+    log("\nThank you for your patiences. Please walk around.\n\nStep detections:\n")
+
+  def writeFile(self, lpf_mag, name):
+    fh = openfile(name, True)
+    EOF = 0
+    for i in range(len(lpf_mag)):
+      temp_string = str(lpf_mag[i]) + '\n'
+      if i == 2:
+        log("Data: " + temp_string)
+      fh.writeat(temp_string, EOF)
+      EOF += len(temp_string)
+    fh.close()  
+
+  def readFile(self, time, fileName):
+    #change linux time to regular time and use seconds
+    log("Reading in file\n")
+    ax = []
+    ay = []
+    az = []
+    mag = []
+    rftime = []
+    meanMag = 0
+    #Reading in the hand reference file 
+    handreader = import_csv(fileName)
+    for i in range(WINDOW_SIZE):
+      #Changing UnixTime to regular time -- only taking the seconds
+      unixTime = handreader[i]["time"]
+      unixTime_noY = unixTime - (int(unixTime/31536000) *unixTime)
+      unixTime_noD = unixTime - (int(unixTime_noY/86400) *unixTime_noY)
+      unixTime_noH = unixTime - (int(unixTime_noD/3600) * unixTime_noD)
+      unixTime_noM = unixTime - (int(unixTime_noH/60) * unixTime_noH)
+
+      rftime.append(unixTime_noM)
+      ax.append(handreader[i]["ax"])
+      ay.append(handreader[i]["ay"])
+      az.append(handreader[i]["az"])
+
+    #Magnititude of acceleration of reference file 
+    for i in range(0, len(ax)):
+      mag.append((float(ax[i]) ** 2.0) + (float(ay[i]) ** 2.0) + (float(az[i]) ** 2.0) ** 0.5)
+         
+    #Mean magnitude of acceleration of reference filemath.pow
+    for i in range(0, len(mag)):
+      meanMag += mag[i]
+    meanMag = meanMag/len(mag)
+    
+    #Non-gravity magnititude of acceleration
+    for i in range(0, len(mag)):
+      mag[i] = mag[i] - meanMag
+
+    lpf_mag = self.lpf.filter(mag, rftime, False)
+    self.writeFile(lpf_mag, 'unfiltered.csv' )
+    maf_mag = self.maf.hanning_filter(lpf_mag, rftime)
+    self.writeFile(maf_mag, 'filtered.csv')
+
+    # Read in the time file and pass in the time as a list 
+    return maf_mag
+  def detect_step(self, raw_acc, rh, th, ct,  time, method = 0): 
+    '''Non-gravity acceleration
+    #gravity that is obtained minus the gravity constanty '''
+    self.raw_mag.append(matrix_row_magnitude([raw_acc['xforce'], raw_acc['yforce'], raw_acc['zforce']]) - self.gravity_constant)
+    self.timelist.append(time)
+
+    #Filter once there is enough for the window size
+    if(len(self.raw_mag) % WINDOW_SIZE == 0):
+      # linear phase low pass filter
+      log("Detecting step\n")
+      lpf_mag = self.lpf.filter(self.raw_mag[(200*(self.window_count-1)):(200 * self.window_count)], self.timelist, False) 
+
+      # moving average filter
+      maf_mag = self.maf.hanning_filter(lpf_mag, self.timelist)
+    
+      # carrying method detection
+      self._method_detection(maf_mag, rh, th, ct)
+
+
+      #self._motion_detect(maf_mag, time)
+      
+      # Only if it is relevant data, step detection
+      if (self.carrying_flag == 0):  
+        peak = self._detect_peak(maf_mag[(200*(self.window_count-1)):(200 * self.window_count)])
+      #zero = self._detect_zero(maf_mag, time)
+      log ("========================")
+      '''if method == 1:
+        return peak
+      else:
+        return zero'''
+
+
+#checks whether or not you are holding it in hand, trousers, coat, etc
+#old version 
+  def _method_detection(self, exp_data, ref_RH, ref_TH, ref_CT):
+    slicex = 0;
+    dh = dtw(exp_data[slicex:slicex+WINDOW_SIZE], ref_RH)
+    dt = dtw(exp_data[slicex:slicex+WINDOW_SIZE], ref_TH)
+    dc = dtw(exp_data[slicex:slicex + WINDOW_SIZE], ref_CT)
+    log(dh, dt)
+    if dt < DTW_threshold and dt < dh:
+      self.carrying_flag = 0
+      log("Status: Trousers\n")
+    elif dh < DTW_threshold and dh < dt:
+      self.carrying_flag =  0
+      log("Status: Hand\n")
+    else:
+      self.carrying_flag = 1
+      log("irrelevant data\n")
+
+
+
+#detects if you are running walking or standing 
+  def _motion_detect(self, mag, time):
+    if mag > self.threshold or time - self.steptime < 1.0:
+      if self.motion_flag == 0:
+        if self.moving_freq > 2.5:
+          log("Status: running\n")
+        else:
+          log("StatusL walking\n")
+      self.motion_flag = 1
+    else:
+      if self.motion_flag == 1:
+        log("Status: standing\n")
+      self.motion_flag = 0
+
+#gets step counts depending if youre using zero count or preak count 
+  def get_stepcount(self):
+    return {"zero": self.zerocount, "peak": self.peakcount} 
+
+
+
+#getting the average distance of each stride
+  def get_distance(self):
+    sum_zero = 0.0
+    sum_peak = 0.0
+    if len(self.distance_zero) > 0:
+      for i in range(0, len(self.distance_zero)):
+        sum_zero += self.distance_zero[i]
+      
+    if len(self.distance_peak) > 0:
+      for i in range(0, len(self.distance_peak)):
+        sum_peak += self.distance_peak[i]
+
+    # Average of people's stride is height * 0.415
+    # Average stride works as reference
+    average_zero_distance = self.zerocount * 0.415 * self.height/100
+    average_peak_distance = self.peakcount * 0.415 * self.height/100
+    return {"sum_zero": sum_zero, "sum_peak": sum_peak, "average_zero_distance": average_zero_distance, "average_peak_distance": average_peak_distance}
+
+
+
+
+  # crossing noise level and actual step interval > minimum step interval
+  def _detect_zero(self, data, time):
+    stepped = False
+    if self.lastmag <= self.threshold and data > self.threshold and time - self.steptime >= ZERO_INTERVAL:
+      self.zerocount += 1
+      self.distance_zero.append(self._distance_estimation(self.steptime, time))
+      self.time_zero.append(time)
+      self.steptime = time
+      log("By zero crossing algorithm: time:", time, "Current steps count:", self.zerocount, '\n')
+      stepped = True
+    self.lastmag = data
+
+    return stepped
+
+  
+
+
+  # a moving window to capture the peak
+  # will change to queue later
+  def _detect_peak(self, data): 
+    stepped = False
+    self.maglist.extend(data) 
+
+    #Looking through eperimental data for peaks
+    for i in range(1, len(self.maglist)-1):
+      if (self.maglist[i-1] <= self.maglist[i] and self.maglist[i] > self.maglist[i+1] and 
+            self.timelist[i] - self.last_peak_time >= 0.15 and self.maglist[i] > 0.15): 
+        #log("Data Point: " + str(self.maglist[i]) + "\n")
+        stepped = True
+        self.peakcount += 1
+
+        self.distance_peak.append(self._distance_estimation(self.last_peak_time, self.timelist[i]))
+
+        self.last_peak_time = self.timelist[i]
+        
+        self.time_peak.append(self.timelist[i])
+        
+    log("\nBy peak search algorithm: time:", self.timelist[len(self.timelist)-1], "Current steps count:", self.peakcount, '\n')
+      
+    #Refreshed data for next peak detection
+    self.window_count += 1
+    self.maglist = []
+    self.timelist = []
+    return stepped
+
+
+
+
+
+#the own distance estimation algorithm to find the distance someone walked based on height and steps 
+  # Distance estimation by height and steps frequency  
+  def _distance_estimation(self, lasttime, currenttime):
+    interval = currenttime - lasttime
+    step_per_second = 1.0/interval
+    self.moving_freq = step_per_second
+    if 0.0 <= step_per_second < 1.0:
+      stride_per_step = self.height/5.0
+    elif 1.0 <= step_per_second < 1.5:
+      stride_per_step = self.height/4.0
+    elif 1.5 <= step_per_second < 2.0:
+      stride_per_step = self.height/3.0
+    elif 2.0 <= step_per_second < 2.5:
+      stride_per_step = self.height/2.0
+    elif 2.5 <= step_per_second < 3.0:
+      stride_per_step = self.height/1.2
+    elif 3.0 <= step_per_second < 4.0:
+      stride_per_step = self.height
+    else:
+      stride_per_step = self.height * 1.2
+
+    speed_per_second = step_per_second * stride_per_step
+    step_length = speed_per_second * interval
+
+    if interval > 1.0 or step_length > 300.0:
+      step_length = self.height * 0.415
+
+    return step_length/100
+  
+# -*- mode: python;-*-

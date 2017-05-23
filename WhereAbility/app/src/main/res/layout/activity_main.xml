@@ -7,25 +7,101 @@
     android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
-    android:paddingBottom="@dimen/activity_vertical_margin" tools:context=".MainActivity">
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    tools:context=".MainActivity">
+
 
     <Switch
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="OFF"
+        android:text="SENSORS OFF"
         android:id="@+id/switch1"
-        android:checked="true"
-        android:layout_marginBottom="108dp"
+        android:checked="false"
+        android:backgroundTint="#ffd033"
+        android:layout_marginBottom="47dp"
         android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true" />
+        android:layout_centerHorizontal="true"/>
 
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Scan QR Code"
+        android:text="Submit Location"
         android:id="@+id/checkin"
-        android:layout_alignParentTop="true"
+        android:backgroundTint="#ffd033"
+        android:layout_above="@+id/switch1"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="164dp" />
+        android:layout_marginBottom="57dp" />
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="OFFLINE"
+        android:id="@+id/switch2"
+        android:checked="false"
+        android:backgroundTint="#ffd033"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" />
+
+    <Switch
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="QR OFF"
+        android:id="@+id/switch3"
+        android:checked="false"
+        android:backgroundTint="#ffd033"
+        android:layout_marginTop="33dp"
+        android:layout_below="@+id/switch2"
+        android:layout_alignRight="@+id/switch2"
+        android:layout_alignEnd="@+id/switch2" />
+
+    <EditText
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/path"
+        android:text="sdcard/filename.csv"
+        android:layout_below="@+id/pathlabel"
+        android:layout_centerHorizontal="true"
+        android:singleLine="true"
+        android:imeOptions="actionDone"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/checkin"
+        android:layout_centerHorizontal="true"
+        android:id="@+id/linearLayout">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:text="Location"
+            android:id="@+id/loclabel" />
+
+        <EditText
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:ems="2"
+            android:singleLine="true"
+            android:imeOptions="actionDone"
+            android:id="@+id/location"
+            android:maxLength="3"
+            android:text="001" />
+
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text="Save as:"
+        android:id="@+id/pathlabel"
+        android:layout_below="@+id/switch3"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="36dp" />
+
 
 </RelativeLayout>

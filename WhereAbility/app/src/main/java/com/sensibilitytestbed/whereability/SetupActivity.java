@@ -2,9 +2,12 @@
     <Program Name>
         SetupActivity.java
 
+    <Author>
+        Seth Miller
+
     <Purpose>
         This activity collects the user's height via text input, saving the data
-        both locally and remotely with a unique ID. It is intended that the
+        both locally and/or remotely with a unique ID. It is intended that the
         height will be used to estimate the user's stride (although not in this app).
  */
 
@@ -16,8 +19,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.text.Editable;
+import android.text.Html;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -49,6 +54,8 @@ public class SetupActivity extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setup);
 
+        ActionBar actionBar = getSupportActionBar();
+        actionBar.setTitle(Html.fromHtml("<font color='#000'> Setup </font>"));
 
 
         /**************** Load the most recently saved height ********************/
@@ -133,7 +140,7 @@ public class SetupActivity extends AppCompatActivity{
             }
         });
 
-        // Need to which height input is being changed by the user, not the code.
+        // Need to know the height input is being changed by the user, not the code.
         View.OnTouchListener touchListener = new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -181,11 +188,6 @@ public class SetupActivity extends AppCompatActivity{
 
 
 
-        /********  Android requires a connection to bind to the backhauling service to communicate.  ********/
-
-
-
-
 
         /*************************************  Setup the Continue button  **********************************************/
 
@@ -201,21 +203,20 @@ public class SetupActivity extends AppCompatActivity{
                     // The user is new, so save the new height with a new device ID
                     SharedPreferences.Editor prefsEditor = setupPrefs.edit();
                     prefsEditor.putFloat(MainActivity.HEIGHT, height);
-                    prefsEditor.putBoolean(MainActivity.HEIGHT_SENT, false);
                     int deviceID = Math.abs(new Random().nextInt());
                     prefsEditor.putInt(MainActivity.DEVICE_ID, deviceID);
                     prefsEditor.commit();
 
                 }
 
-                // Finally, continue.
+                // Finally, continue to MainActivity.
                 Intent intent = new Intent(context, MainActivity.class);
                 startActivity(intent);
 
             }
         });
 
-        Log.d("MYSETUP", "created");
+        Log.d("WhereAbility", "Setup complete");
     }
 
 

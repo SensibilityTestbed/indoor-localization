@@ -3,6 +3,7 @@ package com.gnzlt.AndroidVisionQRReader;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Point;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Build;
@@ -12,6 +13,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.util.SparseArray;
+import android.view.Display;
 import android.widget.Toast;
 
 import com.gnzlt.AndroidVisionQRReader.camera.CameraSourcePreview;
@@ -106,12 +108,19 @@ public class QRActivity extends AppCompatActivity {
     }
 
     private void setupCameraSource() {
+        /*Display display = getWindowManager().getDefaultDisplay();
+        Point size = new Point();
+        display.getSize(size);
+        int width = size.x;
+        int height = size.y;
+        */
         mCameraSource = new CameraSource.Builder(getApplicationContext(), mBarcodeDetector)
                 .setFacing(CameraSource.CAMERA_FACING_BACK)
                 .setRequestedFps(15.0f)
                 .setRequestedPreviewSize(1600, 1024)
                 .setAutoFocusEnabled(true)
                 .build();
+                //.setRequestedPreviewSize(1600, 1024)
     }
 
     private void startCameraSource() {
