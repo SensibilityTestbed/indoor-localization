@@ -7,7 +7,7 @@
   distance calculation by geo coordinate
 """
 
-dy_import_module_symbols("math.r2py")
+math = dy_import_module("math.r2py")
 pi = 3.14159265358979323846
 
 
@@ -40,13 +40,14 @@ def choose(x):
   return numerator / denominator
 
 
+
 def cos(x):
-  cosx = ((math_e ** complex(0, x)) + (math_e ** complex(0, -x))) / 2  
+  cosx = ((math.math_e ** complex(0, x)) + (math.math_e ** complex(0, -x))) / 2  
   return cosx.real
 
 def sin(x):
-  sinx = ((math_e ** complex(0, x)) - (math_e ** complex(0, -x))) / complex(0, 2)
-  return sinx.imag
+  sinx = ((math.math_e ** complex(0, x)) - (math.math_e ** complex(0, -x))) / complex(0, 2)
+  return sinx.real
 
 def tan(x):
   return sin(x)/cos(x)
@@ -61,5 +62,28 @@ def asin(x):
 
 def acos(x):
   return  pi / 2 - asin(x)
+
+def atan(x):
+  return asin(x/(x ** 2 + 1) ** 0.5)
+
+def atan2(y, x):
+  if x == 0:
+    if y > 0:
+      result = pi/2
+    elif y < 0:
+      result = -pi/2
+    #else:
+      #error message
+    return result
+
+  result = atan(y/x)
+  if x < 0:
+    if y >= 0:
+      result = result + pi
+    else:
+      result = reulst - pi
+  return result
+
+
 
 # -*- mode: python;-*-

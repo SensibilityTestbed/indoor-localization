@@ -11,6 +11,8 @@
 
 # temporarly added trigonomery functions in this script
 # Will delete these functions after fix trig.r2py
+
+log("check point: butterworth_preset\n")
 pi = 3.14159265358979323846
 TERMS = 11
 
@@ -35,7 +37,7 @@ def butter_sin(x):
 def butter_tan(x):
   return butter_sin(x)/butter_cos(x)
 
-
+log("check point: butterworth_trig\n")
 
 
 # y(k) = b0x(k) + b1x(k-1) + b2x(k-2) - a1y(k-1) - a2y(k-2)
@@ -128,5 +130,6 @@ class ButterworthFilter:
     self.last_time = current_time
     return filtered_magNoG
 
+log("check point: butterworth_done\n")
 
 # -*- mode: python;-*-

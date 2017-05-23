@@ -12,20 +12,20 @@
 
 
 
-
+log("check point: pedometer_getsensor\n")
 dy_import_module_symbols('getsensor.r2py')
+log("check point: pedometer_precalibration\n")
 dy_import_module_symbols('precalibration.r2py')
+log("check point: pedometer_filteres\n")
 hanning = dy_import_module('moving_average_hanning.r2py')
+log("check point: pedometer_butterworthfilteres\n")
 butterworth = dy_import_module('butterworth.r2py')
-
-
-
-
+log("check point: pedometer_class\n")
 
 # constants for pre-calibratino stage
 PRE_LEARN_SAMPLE_NUMBER = 100
-ZERO_INTERVAL = 0.25                  # Minimum time difference between each step in senconds
-PEAK_INTERVAL = 0.5
+ZERO_INTERVAL = 0.4                  # Minimum time difference between each step in senconds
+PEAK_INTERVAL = 0.6
 
 
 
@@ -46,7 +46,7 @@ class Pedometer:
 
 
     # Initialize low pass filter
-    self.lpf = butterworth.ButterworthFilter("low", 3.0, self.samplerate, 0.0, 0.125)
+    self.lpf = butterworth.ButterworthFilter("low", 2.0, self.samplerate, 0.0, 0.125)
 
     self.hpf = butterworth.ButterworthFilter("high", 0.1, self.samplerate, 0.0, 0.125)
 
@@ -203,13 +203,14 @@ class Pedometer:
   # crossing noise level and actual step interval > minimum step interval
   def _detect_zero(self, data, time):
     stepped = False
-    if self.lastmag <= self.threshold and data > self.threshold and time - self.steptime >= ZERO_INTERVAL:
-      self.zerocount += 1
-      self.distance_zero.append(self._distance_estimation(self.steptime, time))
-      self.time_zero.append(time)
-      self.steptime = time
-      log("By zero crossing algorithm: time:", time, "Current steps count:", self.zerocount, '\n')
-      stepped = True
+    if (self.lastmag <= self.threshold) and (data > self.threshold):
+      if ((time - self.steptime) >= ZERO_INTERVAL):
+        self.zerocount += 1
+        self.distance_zero.append(self._distance_estimation(self.steptime, time))
+        self.time_zero.append(time)
+        self.steptime = time
+        log("By zero crossing algorithm: time:", time, "Current steps count:", self.zerocount, '\n')
+        stepped = True
     self.lastmag = data
 
     return stepped
@@ -259,28 +260,18 @@ class Pedometer:
   # Distance estimation by height and steps frequency  
   def _distance_estimation(self, lasttime, currenttime):
     interval = currenttime - lasttime
+    height = self.height/100.0
     step_per_second = 1.0/interval
-    if 0.0 <= step_per_second < 1.0:
-      stride_per_step = self.height/5.0
-    elif 1.0 <= step_per_second < 1.5:
-      stride_per_step = self.height/4.0
-    elif 1.5 <= step_per_second < 2.0:
-      stride_per_step = self.height/3.0
-    elif 2.0 <= step_per_second < 2.5:
-      stride_per_step = self.height/2.0
-    elif 2.5 <= step_per_second < 3.0:
-      stride_per_step = self.height/1.2
-    elif 3.0 <= step_per_second < 4.0:
-      stride_per_step = self.height
-    else:
-      stride_per_step = self.height * 1.2
-
-    speed_per_second = step_per_second * stride_per_step
-    step_length = speed_per_second * interval
+ 
+    step_length = height * 0.43 + 0.2 * step_per_second - 0.4
+    log(interval, step_per_second, height, step_length,'\n')
 
     if interval > 1.0 or step_length > 300.0:
-      step_length = self.height * 0.415
+      step_length = height * 0.43
+    elif interval < 0.25:
+      step_length = 0.0
 
-    return step_length/100
+
+    return step_length
 
 # -*- mode: python;-*-

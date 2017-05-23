@@ -24,23 +24,26 @@ def import_csv(filename):
 
 
 #dy_import_module_symbols('orientation_filter.r2py')
+log("check point: import stat_stream...\n")
 dy_import_module_symbols('stat_stream.r2py')
+log("check point: import pre_calibration\n")
 dy_import_module_symbols('precalibration.r2py')
+log("check point: import pedometer\n")
 dy_import_module_symbols('pedometer.r2py')
-
-caldata = import_csv("samsung_100hz_calibration.csv")
+log("check point: import csv file\n")
+caldata = import_csv("sony_50hz_calibration.csv")
 
 acc_stream = StatStream()
 gyro_stream = StatStream()
 magnet_stream = StatStream()
 
-
+log("check point: setup precalibration\n")
 pre = PreCalibration(1, 0)
 pre.acc_stats = acc_stream 
 pre.gyro_stats = gyro_stream
 pre.magnet_stats = magnet_stream 
 
-
+log("check point: magnitude\n")
 for meas in caldata:
   mag = matrix_row_magnitude([meas['xforce'], meas['yforce'], meas['zforce']])
   pre.acc_stats.update(mag)
@@ -51,12 +54,13 @@ for meas in caldata:
 
 #compass = OrientationFilter(pre)
 
+log("check point: ped\n")
 
 pre.start_time = caldata[0]['time'] * 10 ** -9
 pre.time = caldata[-1]['time'] * 10 ** -9
 
 
-data = import_csv("samsung_100hz_trousers1.csv")
+data = import_csv("sony_50hz_trousers2.csv")
 log("Pre-calibration down! The pre-learned coefficients shows as below:\n")
 ped = Pedometer(pre, 175)
 
@@ -84,8 +88,10 @@ elif ped.carrying_flag == 2:
   log("Carrying method: put in trousers pocket\n")
 elif ped.carrying_flag == 3:
   log("Carrying method: put in coat pocket\n")
-log("\nThe distance will be estimated from two different detection algorithms and two estimation algorithms.\n")
-log("\nCrossing zero algorithm:\n  Distance estimation from average stride: ", distance['average_zero_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_zero'],"meters\n")
-log("\nPeak search algorithm:\n  Distance estimation from average stride: ", distance['average_peak_distance'],"meters\n  distance estimation from dynamic stride: ", distance['sum_peak'],"meters\n") 
+log("\nTotal step counts by crossing zero: ", ped.zerocount, "\n")
+log("Total step counts by peak searching: ", ped.peakcount, "\n")
+log("\nThe distance estimated by approach #1:")
+log("\nCrossing zero algorithm: ", distance['sum_zero'],"meters")
+log("\nPeak search algorithm: ", distance['sum_peak'],"meters\n") 
 log("\n\n     Thank you for your using!\n")
 log("###################################\n")

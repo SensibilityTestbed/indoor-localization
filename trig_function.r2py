@@ -1,0 +1,92 @@
+"""
+<Program Name>
+  trig.r2py
+
+<Purpose>
+  This is a script of some basic Trigonometric functions, and the
+  distance calculation by geo coordinate
+"""
+
+log("======================******************\n")
+m = dy_import_module('math.r2py')
+
+
+log("*******************************\n")
+
+# converts decimal degrees to radians
+def trig_deg2rad(deg):
+  return (deg * m.math_pi / 180)
+
+# converts radians to decimal degrees
+def trig_rad2deg(rad):
+  return (rad * 180 / m.math_pi)
+
+
+trig_TERMS = 11
+
+def trig_factorial(x):
+  result = 1 
+  for num in range(x):
+    result *= (num + 1)
+  return result
+
+
+def trig_choose(x):
+  numerator = 1.0
+  denominator = 1.0
+  for num in range(x+1, x * 2 + 1):
+    numerator *= num
+  for num in range(1, x+1):
+    denominator *= num
+  return numerator / denominator
+
+
+
+def trig_cos(x):
+  cosx = ((m.math_e ** complex(0, x)) + (m.math_e ** complex(0, -x))) / 2  
+  return cosx.real
+
+def trig_sin(x):
+  sinx = ((m.math_e ** complex(0, x)) - (m.math_e ** complex(0, -x))) / complex(0, 2)
+  return sinx.real
+
+def trig_tan(x):
+  return trig_sin(x)/trig_cos(x)
+
+
+def trig_asin(x):
+  taylorsum = 0.0
+  for n in range(trig_TERMS):
+    taylorsum += trig_choose(n) * x ** (2 * n + 1) / (4 ** n * (2 * n + 1))
+  return taylorsum
+
+
+def trig_acos(x):
+  return  m.math_pi / 2 - trig_asin(x)
+
+def trig_atan(x):
+  return trig_asin(x/(x ** 2 + 1) ** 0.5)
+
+def trig_atan2(y, x):
+  if x == 0:
+    if y > 0:
+      result = m.math_pi/2
+    elif y < 0:
+      result = -m.math_pi/2
+    #else:
+      #error message
+    return result
+
+  result = trig_atan(y/x)
+  if x < 0:
+    if y >= 0:
+      result = result + m.math_pi
+    else:
+      result = reulst - m.math_pi
+  return result
+
+#log(trig_tan(0.5))
+#log(trig_atan2(2,1))
+log("======================******************\n")
+
+# -*- mode: python;-*-

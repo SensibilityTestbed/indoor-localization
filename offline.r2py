@@ -14,10 +14,11 @@ def import_csv(filename):
     data.append(entry)
   return data
 
-
+log("=============================\n")
 dy_import_module_symbols('orientation_filter.r2py')
 dy_import_module_symbols('stat_stream.r2py')
 dy_import_module_symbols('precalibration.r2py')
+log("=============================\n")
 
 #caldata = import_csv("samsung_100hz_calibration.csv")
 caldata = import_csv("180cal.csv")
@@ -62,7 +63,7 @@ flip 0.006756171 -0.015592093 -0.25117373
 
 compass = OrientationFilter(pre)
 
-# data = import_csv("samsung_100hz_rotation.csv")
+#data = import_csv("samsung_100hz_rotation.csv")
 data = import_csv("180.csv")
 
 # v = matrix_transpose([pre.gravity_vector])
