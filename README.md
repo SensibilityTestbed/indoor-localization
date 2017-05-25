@@ -2,6 +2,11 @@
 This project provides modules for locating / navigating devices by
 means of inertial and magnetic sensor fusion.   
 
+Current progress: a camera based indoor localization was provided by Yu Hu: 
+https://github.com/yh570/indoor_localization_with_CV
+
+Two options for future implenmentation: when camera can't capture the object or QR code, using sensors instead; Kalman filter evaluate from camera based and sensor based
+
 A step detector / counter is provided in pedometer.r2py, while
 heading and device orientation can be derived from the 
 OrientationFilter class.
